@@ -26,6 +26,8 @@ public final class ReaderRepository implements IReaderRepository
     private static final byte TYPE_LENGTH = 0x01;
     private static final byte URI_TYPE = 0x55;
     private static final byte HTTPS_PREFIX = 0x04;
+    private static final byte CLA = (byte) 0xFF;
+    private static final byte P1 = 0x00;
 
     public ReaderRepository(final CardChannel cardChannel)
     {
@@ -144,7 +146,7 @@ public final class ReaderRepository implements IReaderRepository
 
     private byte[] readPage(final int page) throws CardException
     {
-        final CommandAPDU command = new CommandAPDU(0xFF, 0xB0, 0x00, page, 4);
+        final CommandAPDU command = new CommandAPDU(CLA, 0xB0, P1, page, 4);
 
         final ResponseAPDU response = cardChannel.transmit(command);
 
@@ -175,7 +177,7 @@ public final class ReaderRepository implements IReaderRepository
             throw new IllegalArgumentException("Expected four bytes");
         }
 
-        final CommandAPDU command = new CommandAPDU(0xFF, 0xD6, 0x00, page, data);
+        final CommandAPDU command = new CommandAPDU(CLA, 0xD6, P1, page, data);
         final ResponseAPDU response = cardChannel.transmit(command);
 
         if (response.getSW() != 0x9000)
