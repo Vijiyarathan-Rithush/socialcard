@@ -20,14 +20,20 @@ public final class ReaderRepository implements IReaderRepository
     private static final Logger LOGGER = LoggerFactory.getLogger(ReaderRepository.class);
     private final CardChannel cardChannel;
     private static final int URL_LENGTH = 249;
+    private static final byte NDEF_TLV = 0x03;
+    private static final byte TERMINATOR = (byte) 0xFE;
+    private static final byte RECORD_HEADER = (byte) 0xD1;
+    private static final byte TYPE_LENGTH = 0x01;
+    private static final byte URI_TYPE = 0x55;
+    private static final byte HTTPS_PREFIX = 0x04;
 
-    public ReaderRepository(CardChannel cardChannel)
+    public ReaderRepository(final CardChannel cardChannel)
     {
         this.cardChannel = cardChannel;
     }
 
     @Override
-    public NDefMessage encodeURI(String url)
+    public NDefMessage encodeURI(final String url)
     {
         LOGGER.info("Encoding URI: " + url);
 
@@ -53,24 +59,24 @@ public final class ReaderRepository implements IReaderRepository
         final int ndefLength = payLoadLength + 4;
         final byte[] data = new byte[ndefLength + 3];
 
-        data[0] = 0x03;
+        data[0] = NDEF_TLV;
         data[1] = (byte) ndefLength;
-        data[2] = (byte) 0xD1;
-        data[3] = (byte) 0x01;
+        data[2] = RECORD_HEADER;
+        data[3] = TYPE_LENGTH;
         data[4] = (byte) payLoadLength;
-        data[5] = 0x55;
-        data[6] = 0x04;
+        data[5] = URI_TYPE;
+        data[6] = HTTPS_PREFIX;
 
         System.arraycopy(urlBytes, 0, data, 7, urlBytes.length);
 
-        data[data.length - 1] = (byte) 0xFE;
+        data[data.length - 1] = TERMINATOR;
 
         LOGGER.info("Encoding URI method finished");
 
         return new NDefMessage(data);
     }
 
-    private static byte[] getUrlBytes(URI uri)
+    private static byte[] getUrlBytes(final URI uri)
     {
         if(!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null || uri.getUserInfo() != null)
         {
@@ -90,93 +96,91 @@ public final class ReaderRepository implements IReaderRepository
     }
 
     @Override
-    public NDefMessage read() throws CardException {
+    public NDefMessage read() throws CardException
+    {
         final byte[] firstPage = readPage(4);
         final int length = Byte.toUnsignedInt(firstPage[1]);
 
-        if (firstPage[0] != 0x03 || length == 0 || length == 255) {
+        if (firstPage[0] != NDEF_TLV || length == 0 || length == 255)
+        {
             throw new CardException("Unsupported or empty NDEF message");
         }
 
         final ByteArrayOutputStream output = new ByteArrayOutputStream();
+
         output.writeBytes(firstPage);
 
         final int totalLength = length + 3;
 
-        for (int page = 5; output.size() < totalLength; page++) {
+        for (int page = 5; output.size() < totalLength; page++)
+        {
             output.writeBytes(readPage(page));
         }
 
-        return new NDefMessage(
-                Arrays.copyOf(output.toByteArray(), totalLength)
-        );
+        return new NDefMessage(Arrays.copyOf(output.toByteArray(), totalLength));
     }
 
     @Override
-    public void write(NDefMessage message) throws CardException {
+    public void write(final NDefMessage message) throws CardException
+    {
         final byte[] data = message.data();
         final int paddedLength = ((data.length + 3) / 4) * 4;
         final byte[] padded = Arrays.copyOf(data, paddedLength);
 
-        writePage(4, new byte[] {0x03, 0x00, (byte) 0xFE, 0x00});
+        writePage(4, new byte[] {NDEF_TLV, 0x00, TERMINATOR, 0x00});
 
-        for (int offset = 4; offset < padded.length; offset += 4) {
-            writePage(
-                    4 + offset / 4,
-                    Arrays.copyOfRange(padded, offset, offset + 4)
-            );
+        for (int offset = 4; offset < padded.length; offset += 4)
+        {
+            writePage(4 + offset / 4,Arrays.copyOfRange(padded, offset, offset + 4));
         }
 
         writePage(4, Arrays.copyOfRange(padded, 0, 4));
 
-        if (!Arrays.equals(data, read().data())) {
+        if (!Arrays.equals(data, read().data()))
+        {
             throw new CardException("Verification failed");
         }
     }
 
-    private byte[] readPage(int page) throws CardException {
-        final CommandAPDU command =
-                new CommandAPDU(0xFF, 0xB0, 0x00, page, 4);
+    private byte[] readPage(final int page) throws CardException
+    {
+        final CommandAPDU command = new CommandAPDU(0xFF, 0xB0, 0x00, page, 4);
 
         final ResponseAPDU response = cardChannel.transmit(command);
 
-        if (response.getSW() != 0x9000) {
-            throw new CardException(
-                    String.format("Reading page %d failed: %04X",
-                            page, response.getSW())
-            );
+        if (response.getSW() != 0x9000)
+        {
+            throw new CardException(String.format("Reading page %d failed: %04X",page, response.getSW()));
         }
 
         final byte[] data = response.getData();
 
-        if (data.length != 4) {
+        if (data.length != 4)
+        {
             throw new CardException("Expected four bytes");
         }
 
         return data;
     }
 
-    private void writePage(int page, byte[] data) throws CardException {
-        if (page < 4 || page > 129) {
-            throw new IllegalArgumentException(
-                    "NTAG215 user pages range from 4 to 129"
-            );
+    private void writePage(final int page, final byte[] data) throws CardException
+    {
+        if (page < 4 || page > 129)
+        {
+            throw new IllegalArgumentException("NTAG215 user pages range from 4 to 129");
         }
 
-        if (data == null || data.length != 4) {
+        if (data == null || data.length != 4)
+        {
             throw new IllegalArgumentException("Expected four bytes");
         }
 
-        final CommandAPDU command =
-                new CommandAPDU(0xFF, 0xD6, 0x00, page, data);
-
+        final CommandAPDU command = new CommandAPDU(0xFF, 0xD6, 0x00, page, data);
         final ResponseAPDU response = cardChannel.transmit(command);
 
-        if (response.getSW() != 0x9000) {
-            throw new CardException(
-                    String.format("Writing page %d failed: %04X",
-                            page, response.getSW())
-            );
+        if (response.getSW() != 0x9000)
+        {
+            throw new CardException(String.format("Writing page %d failed: %04X",page, response.getSW()));
         }
     }
 }

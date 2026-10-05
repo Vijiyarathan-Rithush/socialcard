@@ -15,13 +15,13 @@ public final class ReaderService implements IReaderService
 {
     private final IReaderRepository repository;
 
-    public ReaderService(IReaderRepository repository)
+    public ReaderService(final IReaderRepository repository)
     {
         this.repository = repository;
     }
 
     @Override
-    public NDefMessage encodeURI(String message)
+    public NDefMessage encodeURI(final String message)
     {
         return repository.encodeURI(message);
     }
@@ -33,7 +33,7 @@ public final class ReaderService implements IReaderService
     }
 
     @Override
-    public void write(NDefMessage message) throws CardException
+    public void write(final NDefMessage message) throws CardException
     {
         repository.write(message);
     }
