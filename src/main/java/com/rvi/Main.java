@@ -5,6 +5,8 @@ import com.rvi.application.ReaderRepository;
 import com.rvi.domain.NDefMessage;
 import com.rvi.service.IReaderService;
 import com.rvi.service.ReaderService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.smartcardio.*;
 import java.util.HexFormat;
@@ -12,14 +14,15 @@ import java.util.List;
 
 public class Main
 {
-
+    private static final Logger LOGGER = LoggerFactory.getLogger(Main.class);
     public static void main(String[] args) throws CardException
     {
+
         final List<CardTerminal> terminals = TerminalFactory.getDefault().terminals().list();
 
         if (terminals.isEmpty())
         {
-            System.out.println("No Card terminal found.");
+            LOGGER.info("No terminal found");
             return;
         }
 
@@ -27,7 +30,7 @@ public class Main
 
         if (!terminal.isCardPresent())
         {
-            System.out.println("Please present the card");
+            LOGGER.info("Card not found");
             return;
         }
 
@@ -39,16 +42,12 @@ public class Main
 
             final IReaderService service = new ReaderService(repository);
 
-            final NDefMessage message = service.encodeURI("https://github.com/Vijiyarathan-Rithush");
+            final NDefMessage message = service.encodeURI("https://www.youtube.com/");
 
             service.write(message);
 
-            final NDefMessage stored = service.read();
-
             service.write(message);
-            System.out.println("Link Saved");
-
-            System.out.println(HexFormat.ofDelimiter(" ").withUpperCase().formatHex(stored.data()));
+            LOGGER.info("Link saved successfully");
         }
         finally
         {
