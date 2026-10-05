@@ -7,7 +7,6 @@ public record NDefMessage(byte[] data)
 
     private static final byte NDEF_TLV = 0x03;
     private static final byte TERMINATOR = (byte) 0xFE;
-    private static final byte RECORD_HEADER = (byte) 0xD1;
     private static final byte TYPE_LENGTH = 0x01;
     private static final byte URI_TYPE = 0x55;
     private static final byte HTTPS_PREFIX = 0x04;
@@ -19,6 +18,8 @@ public record NDefMessage(byte[] data)
             throw new NDefMessageException("Data is missing or too short");
         }
 
+        data = data.clone();
+
         if (data[0] != NDEF_TLV)
         {
             throw new NDefMessageException("Missing NDEF TLV");
@@ -28,7 +29,9 @@ public record NDefMessage(byte[] data)
 
         if (ndefLength == 0xFF)
         {
-            throw new NDefMessageException("Extended TLV length is not supported");
+            throw new NDefMessageException(
+                    "Extended TLV length is not supported"
+            );
         }
 
         if (ndefLength != data.length - 3)
@@ -36,42 +39,68 @@ public record NDefMessage(byte[] data)
             throw new NDefMessageException("Invalid NDEF length");
         }
 
-        if (data[2] != RECORD_HEADER)
-        {
-            throw new NDefMessageException("Invalid record header");
-        }
-
-        if (data[3] != TYPE_LENGTH)
-        {
-            throw new NDefMessageException("Invalid type length");
-        }
-
-        if (Byte.toUnsignedInt(data[4]) != ndefLength - 4)
-        {
-            throw new NDefMessageException("Invalid payload length");
-        }
-
-        if (data[5] != URI_TYPE)
-        {
-            throw new NDefMessageException("Expected URI record");
-        }
-
-        if (data[6] != HTTPS_PREFIX)
-        {
-            throw new NDefMessageException("Expected HTTPS prefix");
-        }
-
         if (data[data.length - 1] != TERMINATOR)
         {
             throw new NDefMessageException("Missing terminator");
         }
 
-        data = data.clone();
-    }
+        final int end = data.length - 1;
+        int offset = 2;
+        boolean first = true;
 
-    @Override
-    public byte[] data()
-    {
-        return data.clone();
+        while (offset < end)
+        {
+            if (end - offset < 5)
+            {
+                throw new NDefMessageException("Incomplete URI record");
+            }
+
+            final int header = Byte.toUnsignedInt(data[offset]);
+            final int payloadLength =
+                    Byte.toUnsignedInt(data[offset + 2]);
+
+            final boolean messageBegin = (header & 0x80) != 0;
+            final boolean messageEnd = (header & 0x40) != 0;
+
+            if ((header & 0x3F) != 0x11 || messageBegin != first)
+            {
+                throw new NDefMessageException("Invalid record header");
+            }
+
+            if (data[offset + 1] != TYPE_LENGTH)
+            {
+                throw new NDefMessageException("Invalid type length");
+            }
+
+            if (payloadLength < 1)
+            {
+                throw new NDefMessageException("Missing URI prefix");
+            }
+
+            final int nextOffset = offset + 4 + payloadLength;
+
+            if (nextOffset > end)
+            {
+                throw new NDefMessageException("Invalid payload length");
+            }
+
+            if (data[offset + 3] != URI_TYPE)
+            {
+                throw new NDefMessageException("Expected URI record");
+            }
+
+            if (data[offset + 4] != HTTPS_PREFIX)
+            {
+                throw new NDefMessageException("Expected HTTPS prefix");
+            }
+
+            if (messageEnd != (nextOffset == end))
+            {
+                throw new NDefMessageException("Invalid message end flag");
+            }
+
+            offset = nextOffset;
+            first = false;
+        }
     }
 }

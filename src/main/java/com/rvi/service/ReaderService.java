@@ -8,6 +8,7 @@ import javax.smartcardio.CardChannel;
 import javax.smartcardio.CardException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
 
@@ -36,5 +37,11 @@ public final class ReaderService implements IReaderService
     public void write(final NDefMessage message) throws CardException
     {
         repository.write(message);
+    }
+
+    @Override
+    public NDefMessage encodeURIs(List<String> urls)
+    {
+        return repository.encodeURIs(urls);
     }
 }

@@ -42,7 +42,7 @@ public class Main
 
             final IReaderService service = new ReaderService(repository);
 
-            final NDefMessage message = service.encodeURI("https://www.youtube.com/");
+            final NDefMessage message = service.encodeURIs(List.of("https://github.com/Vijiyarathan-Rithush/socialcard", "https://github.com/Vijiyarathan-Rithush/socialcard/tree/main/src/main/java/com/rvi", "https://www.youtube.com/"));
 
             service.write(message);
 

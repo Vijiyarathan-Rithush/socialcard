@@ -14,6 +14,7 @@ import java.io.ByteArrayOutputStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.List;
 
 public final class ReaderRepository implements IReaderRepository
 {
@@ -37,45 +38,90 @@ public final class ReaderRepository implements IReaderRepository
     @Override
     public NDefMessage encodeURI(final String url)
     {
-        LOGGER.info("Encoding URI: " + url);
-
-        if (url == null || url.isBlank())
+        if (url == null)
         {
-            throw new ReaderServiceException("URL is null or blank");
+            throw new ReaderServiceException("URL is null");
         }
 
-        final URI uri;
+        return encodeURIs(List.of(url));
+    }
 
-        try
+    @Override
+    public NDefMessage encodeURIs(final List<String> urls)
+    {
+        if (urls == null || urls.isEmpty())
         {
-            uri = URI.create(url.strip());
+            throw new ReaderServiceException("URLs are missing");
         }
-        catch (IllegalArgumentException exception)
+
+        final ByteArrayOutputStream records = new ByteArrayOutputStream();
+
+        for (int index = 0; index < urls.size(); index++)
         {
-            throw new ReaderServiceException("Invalid URI: " + url);
+            final String url = urls.get(index);
+
+            if (url == null || url.isBlank())
+            {
+                throw new ReaderServiceException("URL is null or blank");
+            }
+
+            final URI uri;
+
+            try
+            {
+                uri = URI.create(url.strip());
+            }
+            catch (IllegalArgumentException exception)
+            {
+                throw new ReaderServiceException("Invalid URI: " + url);
+            }
+
+            final byte[] urlBytes = getUrlBytes(uri);
+            final int payloadLength = urlBytes.length + 1;
+
+            if (records.size() + payloadLength + 4 > 254)
+            {
+                throw new ReaderServiceException("Combined NDEF message exceeds 254 bytes");
+            }
+
+            records.write(getRecordHeader(index, urls.size()));
+            records.write(0x01);
+            records.write(payloadLength);
+            records.write(0x55);
+            records.write(0x04);
+            records.writeBytes(urlBytes);
         }
 
-        final byte[] urlBytes = getUrlBytes(uri);
+        final ByteArrayOutputStream output = new ByteArrayOutputStream();
 
-        final int payLoadLength = urlBytes.length + 1;
-        final int ndefLength = payLoadLength + 4;
-        final byte[] data = new byte[ndefLength + 3];
+        output.write(0x03);
+        output.write(records.size());
+        output.writeBytes(records.toByteArray());
+        output.write(0xFE);
 
-        data[0] = NDEF_TLV;
-        data[1] = (byte) ndefLength;
-        data[2] = RECORD_HEADER;
-        data[3] = TYPE_LENGTH;
-        data[4] = (byte) payLoadLength;
-        data[5] = URI_TYPE;
-        data[6] = HTTPS_PREFIX;
+        return new NDefMessage(output.toByteArray());
+    }
 
-        System.arraycopy(urlBytes, 0, data, 7, urlBytes.length);
+    private static int getRecordHeader(
+            final int index,
+            final int recordCount)
+    {
+        if (recordCount == 1)
+        {
+            return 0xD1;
+        }
 
-        data[data.length - 1] = TERMINATOR;
+        if (index == 0)
+        {
+            return 0x91;
+        }
 
-        LOGGER.info("Encoding URI method finished");
+        if (index == recordCount - 1)
+        {
+            return 0x51;
+        }
 
-        return new NDefMessage(data);
+        return 0x11;
     }
 
     private static byte[] getUrlBytes(final URI uri)
