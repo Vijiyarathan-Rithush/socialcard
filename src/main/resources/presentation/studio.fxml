@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+<BorderPane xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.rvi.presentation.StudioController" styleClass="studio">
+    <top>
+        <HBox alignment="CENTER_LEFT" spacing="18" styleClass="header">
+            <VBox spacing="7"><Label text="NFC Studio" styleClass="title"/><Label text="Write links to NFC cards" styleClass="subtitle"/></VBox>
+            <Region HBox.hgrow="ALWAYS"/>
+            <VBox spacing="7"><Label text="NFC reader" styleClass="muted"/><ComboBox fx:id="readerChoice" prefWidth="290" promptText="Choose a reader"/></VBox>
+            <Label fx:id="readerStatus" text="No reader" styleClass="connection"/>
+            <Button fx:id="refreshButton" text="↻" onAction="#refreshReaders" styleClass="refresh" accessibleText="Refresh readers"/>
+        </HBox>
+    </top>
+    <center>
+        <HBox spacing="18" styleClass="content">
+            <VBox spacing="16" styleClass="panel" HBox.hgrow="ALWAYS">
+                <HBox alignment="CENTER_LEFT" spacing="12"><Label text="Links" styleClass="section-title"/><Label fx:id="countLabel" text="3 entries" styleClass="badge"/></HBox>
+                <ScrollPane fitToWidth="true" hbarPolicy="NEVER" VBox.vgrow="ALWAYS" styleClass="links-scroll"><content><VBox fx:id="linksBox"/></content></ScrollPane>
+                <Button fx:id="addButton" text="+   Add link" onAction="#addLink" maxWidth="Infinity" styleClass="add-button"/>
+                <Label fx:id="validationLabel" wrapText="true" minHeight="36" styleClass="muted"/>
+            </VBox>
+            <VBox spacing="22" styleClass="panel,card-panel" minWidth="270" prefWidth="270" maxWidth="270">
+                <Label text="Card" styleClass="section-title"/>
+                <Region VBox.vgrow="ALWAYS"/>
+                <VBox alignment="CENTER" spacing="14"><Label text=")))" styleClass="card-symbol"/><Label fx:id="cardName" text="No card" styleClass="card-name"/><Label fx:id="cardState" text="Place a card on the reader" wrapText="true" styleClass="card-state"/></VBox>
+                <Region VBox.vgrow="ALWAYS"/>
+                <Separator/>
+                <VBox spacing="12"><Label text="NDEF storage" styleClass="muted"/><Label fx:id="capacityLabel" text="0 bytes" styleClass="muted"/><ProgressBar fx:id="memoryBar" progress="0" maxWidth="Infinity"/></VBox>
+                <Separator/>
+                <Label text="Links are stored as NDEF records. How they open on a phone depends on the app." wrapText="true" minHeight="76" styleClass="note"/>
+            </VBox>
+        </HBox>
+    </center>
+    <bottom>
+        <VBox>
+            <HBox alignment="CENTER_LEFT" spacing="14" styleClass="actions">
+                <Label text="✓  Writes are verified" styleClass="muted"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Button fx:id="readButton" text="Read card" onAction="#readCard" styleClass="secondary"/>
+                <Button fx:id="writeButton" text="Write to card" onAction="#writeCard" styleClass="primary"/>
+            </HBox>
+            <HBox alignment="CENTER_LEFT" spacing="12" styleClass="status-bar"><Label fx:id="statusLabel" text="Ready"/><Label fx:id="busyLabel" text="• working" styleClass="muted"/><Region HBox.hgrow="ALWAYS"/><Label fx:id="footerCount" text="3 links" styleClass="muted"/></HBox>
+        </VBox>
+    </bottom>
+</BorderPane>

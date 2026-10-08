@@ -1,23 +1,16 @@
 package com.rvi.presentation;
 
-import com.rvi.domain.CardStatus;
-import com.rvi.service.ReaderService;
-import javafx.animation.KeyFrame;
-import javafx.animation.Timeline;
-import javafx.beans.property.BooleanProperty;
-import javafx.beans.property.SimpleBooleanProperty;
-import javafx.concurrent.Task;
+import com.rvi.domain.ICardStatus;
+import com.rvi.domain.ILinkValidation;
+import com.rvi.service.IReaderService;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.layout.VBox;
-import javafx.util.Duration;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.function.Consumer;
 
+import java.util.List;
+import java.util.Objects;
+
+/** Adapts user actions and service results to the view. */
 public final class StudioController implements AutoCloseable
 {
     @FXML private ComboBox<String> readerChoice;
@@ -37,275 +30,188 @@ public final class StudioController implements AutoCloseable
     @FXML private Label busyLabel;
     @FXML private ProgressBar memoryBar;
 
-    private final ReaderService service = new ReaderService();
-    private final List<LinkRow> rows = new ArrayList<>();
-    private final BooleanProperty busy = new SimpleBooleanProperty();
-    private final ExecutorService worker = Executors.newSingleThreadExecutor(runnable ->
+    private final IReaderService service;
+    private final ReaderTaskExecutor tasks = new ReaderTaskExecutor();
+    private LinkEditor links;
+    private CardStatusMonitor monitor;
+    private StudioState state = new StudioState(new ICardStatus.NoCard(),
+            new ILinkValidation.Invalid("Add at least one HTTPS link."));
+
+    public StudioController(final IReaderService service)
     {
-        final Thread thread = new Thread(runnable, "nfc-worker");
-        thread.setDaemon(true);
-        return thread;
-    });
-    private final Timeline poller = new Timeline(new KeyFrame(Duration.seconds(2), event -> inspectCard()));
-    private CardStatus cardStatus = new CardStatus(false, false, false, "Keine Karte", 0);
-    private boolean valid;
-    private boolean refreshing;
-    private int usedBytes;
+        this.service = Objects.requireNonNull(service);
+    }
 
     @FXML
     private void initialize()
     {
-        readerChoice.disableProperty().bind(busy);
-        refreshButton.disableProperty().bind(busy);
-        linksBox.disableProperty().bind(busy);
-        addButton.disableProperty().bind(busy);
-        busyLabel.visibleProperty().bind(busy);
-        readerChoice.setOnAction(event ->
+        readerChoice.disableProperty().bind(tasks.busyProperty());
+        refreshButton.disableProperty().bind(tasks.busyProperty());
+        linksBox.disableProperty().bind(tasks.busyProperty());
+        addButton.disableProperty().bind(tasks.busyProperty());
+        busyLabel.visibleProperty().bind(tasks.busyProperty());
+        busyLabel.managedProperty().bind(tasks.busyProperty());
+        links = new LinkEditor(linksBox, this::validateLinks);
+        monitor = new CardStatusMonitor(service, tasks, readerChoice::getValue, this::showStatus);
+        tasks.busyProperty().addListener((observable, previous, current) ->
         {
-            if (!refreshing)
+            monitor.invalidate();
+            render();
+            if (!current)
             {
-                applyStatus(new CardStatus(false, false, false, "Keine Karte", 0));
-                inspectCard();
+                monitor.inspect();
             }
         });
-        addRow("https://github.com/dein-name");
-        addRow("https://instagram.com/dein-name");
-        addRow("https://linkedin.com/in/dein-name");
-        poller.setCycleCount(Timeline.INDEFINITE);
+        readerChoice.valueProperty().addListener((observable, previous, current) ->
+        {
+            monitor.invalidate();
+            showStatus(new ICardStatus.NoCard());
+            monitor.inspect();
+        });
+        links.replace(List.of("https://github.com/your-name", "https://instagram.com/your-name",
+                "https://linkedin.com/in/your-name"));
         refreshReaders();
-        poller.play();
+        monitor.start();
     }
 
     @FXML
     private void refreshReaders()
     {
         final String previous = readerChoice.getValue();
-        run(service::readers, readers ->
+        tasks.run("list readers", service::readers, readers ->
         {
-            refreshing = true;
             readerChoice.getItems().setAll(readers);
-
-            if (readers.contains(previous))
-            {
-                readerChoice.setValue(previous);
-            }
-            else if (!readers.isEmpty())
-            {
-                readerChoice.getSelectionModel().selectFirst();
-            }
-
-            refreshing = false;
-            readerStatus.setText("Kein Reader");
-
-            if (!readers.isEmpty())
-            {
-                readerStatus.setText("Reader verfügbar");
-            }
-
-            applyStatus(new CardStatus(false, false, false, "Keine Karte", 0));
-            statusLabel.setText("Bereit");
-        }, true);
+            readerChoice.setValue(previous != null && readers.contains(previous) ? previous
+                    : readers.isEmpty() ? null : readers.getFirst());
+            showStatus(new ICardStatus.NoCard());
+            statusLabel.setText("Ready");
+        }, this::showFailure);
     }
 
     @FXML
     private void addLink()
     {
-        addRow("");
-        rows.get(rows.size() - 1).focus();
-    }
-
-    private void addRow(final String url)
-    {
-        final LinkRow[] holder = new LinkRow[1];
-        holder[0] = new LinkRow(url, this::validate, () ->
+        if (!tasks.busy() && !tasks.stopping())
         {
-            rows.remove(holder[0]);
-            linksBox.getChildren().remove(holder[0].root());
-            validate();
-        });
-        rows.add(holder[0]);
-        linksBox.getChildren().add(holder[0].root());
-        validate();
-    }
-
-    private List<String> urls()
-    {
-        return rows.stream().map(LinkRow::url).toList();
-    }
-
-    private void validate()
-    {
-        for (int index = 0; index < rows.size(); index++)
-        {
-            rows.get(index).number(index + 1);
-        }
-
-        countLabel.setText(rows.size() + " Einträge");
-        footerCount.setText(rows.size() + " Links");
-        valid = false;
-        usedBytes = 0;
-
-        try
-        {
-            usedBytes = service.encodeURIs(urls()).data().length;
-            valid = true;
-            validationLabel.setText("HTTPS-Links gültig • maximal 254 NDEF-Bytes");
-            validationLabel.getStyleClass().remove("error");
-        }
-        catch (IllegalArgumentException exception)
-        {
-            validationLabel.setText(exception.getMessage());
-
-            if (!validationLabel.getStyleClass().contains("error"))
-            {
-                validationLabel.getStyleClass().add("error");
-            }
-        }
-
-        updateMemory();
-        updateActions();
-    }
-
-    private void inspectCard()
-    {
-        if (busy.get() || readerChoice.getValue() == null)
-        {
-            return;
-        }
-
-        final String reader = readerChoice.getValue();
-        run(() -> service.status(reader), this::applyStatus, false);
-    }
-
-    private void applyStatus(final CardStatus status)
-    {
-        cardStatus = status;
-        cardName.setText(status.name());
-        cardState.setText("Karte auflegen");
-
-        if (status.present())
-        {
-            cardState.setText("Format nicht unterstützt");
-
-            if (status.supported())
-            {
-                cardState.setText("Karte erkannt • schreibgeschützt");
-
-                if (status.writable())
-                {
-                    cardState.setText("Karte erkannt");
-                }
-            }
-        }
-
-        updateMemory();
-        updateActions();
-    }
-
-    private void updateMemory()
-    {
-        capacityLabel.setText(usedBytes + " Bytes • keine Karte");
-        memoryBar.setProgress(0);
-
-        if (cardStatus.supported())
-        {
-            capacityLabel.setText(usedBytes + " / " + cardStatus.capacity() + " Bytes");
-            memoryBar.setProgress((double) usedBytes / cardStatus.capacity());
+            links.add();
         }
     }
 
-    private void updateActions()
+    private void validateLinks()
     {
-        readButton.setDisable(busy.get() || !cardStatus.supported());
-        writeButton.setDisable(busy.get() || !cardStatus.supported() || !cardStatus.writable() || !valid);
+        final List<String> urls = links.urls();
+        state = new StudioState(state.card(), service.validateLinks(urls));
+        countLabel.setText(urls.size() + (urls.size() == 1 ? " entry" : " entries"));
+        footerCount.setText(urls.size() + (urls.size() == 1 ? " link" : " links"));
+        render();
+    }
+
+    private void showStatus(final ICardStatus status)
+    {
+        state = new StudioState(status, state.validation());
+        render();
+    }
+
+    private void render()
+    {
+        final boolean blocked = tasks.busy() || tasks.stopping() || readerChoice.getValue() == null;
+        readButton.setDisable(blocked || !state.readable());
+        writeButton.setDisable(blocked || !state.writable());
+        cardName.setText(state.cardName());
+        cardState.setText(state.cardDescription());
+        capacityLabel.setText(state.capacityText());
+        memoryBar.setProgress(state.memoryProgress());
+        validationLabel.setText(state.validationText());
+        validationLabel.getStyleClass().remove("error");
+        if (state.validationError())
+        {
+            validationLabel.getStyleClass().add("error");
+        }
+        readerStatus.setText(readerChoice.getValue() == null ? "No reader"
+                : state.card() instanceof ICardStatus.Unavailable ? "Check connection" : "Reader available");
     }
 
     @FXML
     private void readCard()
     {
-        final String reader = readerChoice.getValue();
-        statusLabel.setText("Karte wird gelesen …");
-        run(() -> service.read(reader), links ->
+        if (readButton.isDisabled() || tasks.stopping())
         {
-            rows.clear();
-            linksBox.getChildren().clear();
-            links.forEach(this::addRow);
-            validate();
-            statusLabel.setText("Links von der Karte geladen");
-        }, true);
+            return;
+        }
+        final String reader = readerChoice.getValue();
+        statusLabel.setText("Reading card …");
+        tasks.run("read card", () -> service.read(reader), urls ->
+        {
+            links.replace(urls);
+            statusLabel.setText(urls.isEmpty() ? "The card contains no links" : "Links loaded from the card");
+        }, this::showFailure);
     }
 
     @FXML
     private void writeCard()
     {
-        final Alert confirmation = new Alert(Alert.AlertType.CONFIRMATION);
-        confirmation.setTitle("Karte beschreiben");
-        confirmation.setHeaderText("Vorhandenen NDEF-Inhalt ersetzen?");
-        confirmation.setContentText("Die aufgelegte Karte wird mit " + rows.size() + " Links beschrieben und anschliessend überprüft.");
-        confirmation.initOwner(writeButton.getScene().getWindow());
-
-        if (confirmation.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK)
+        if (writeButton.isDisabled() || tasks.stopping())
         {
             return;
         }
-
-        final String reader = readerChoice.getValue();
-        final List<String> links = urls();
-        statusLabel.setText("Karte wird geschrieben und überprüft …");
-        run(() ->
+        final Alert confirmation = new Alert(Alert.AlertType.CONFIRMATION);
+        confirmation.setTitle("Write card");
+        confirmation.setHeaderText("Replace the existing NDEF content?");
+        confirmation.setContentText("Write " + links.urls().size()
+                + " links and verify the result. Keep the card on the reader until writing finishes.");
+        confirmation.initOwner(writeButton.getScene().getWindow());
+        if (confirmation.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK
+                || writeButton.isDisabled() || tasks.stopping())
         {
-            service.write(reader, links);
-            return true;
-        }, result -> statusLabel.setText("Links gespeichert • Überprüfung erfolgreich"), true);
+            return;
+        }
+        final String reader = readerChoice.getValue();
+        final List<String> urls = links.urls();
+        statusLabel.setText("Writing and verifying card …");
+        tasks.run("write card", () ->
+        {
+            service.write(reader, urls);
+            return null;
+        }, ignored -> statusLabel.setText("Links saved · verification successful"), this::showFailure);
     }
 
-    private <T> void run(final Callable<T> action, final Consumer<T> success, final boolean showError)
+    private void showFailure(final Throwable failure)
     {
-        if (busy.get())
+        if (tasks.stopping())
         {
             return;
         }
+        statusLabel.setText("Operation failed");
+        final Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle("NFC Studio");
+        alert.setHeaderText("Operation failed");
+        final String message = failure.getMessage();
+        alert.setContentText(message == null || message.isBlank()
+                ? "The operation could not be completed. See the application log for details." : message);
+        alert.initOwner(writeButton.getScene().getWindow());
+        alert.showAndWait();
+    }
 
-        busy.set(true);
-        updateActions();
-        final Task<T> task = new Task<>()
+    /** Returns false while accepted hardware operations are still finishing. */
+    public boolean requestClose(final Runnable closeWindow)
+    {
+        monitor.close();
+        if (tasks.requestClose(closeWindow))
         {
-            @Override
-            protected T call() throws Exception
-            {
-                return action.call();
-            }
-        };
-        task.setOnSucceeded(event ->
-        {
-            busy.set(false);
-            success.accept(task.getValue());
-            updateActions();
-        });
-        task.setOnFailed(event ->
-        {
-            busy.set(false);
-            applyStatus(new CardStatus(false, false, false, "Nicht verfügbar", 0));
-            readerStatus.setText("Verbindung prüfen");
-            statusLabel.setText("Reader oder Karte nicht verfügbar");
-
-            if (showError)
-            {
-                final Alert alert = new Alert(Alert.AlertType.ERROR);
-                alert.setTitle("NFC Studio");
-                alert.setHeaderText("Aktion fehlgeschlagen");
-                alert.setContentText(task.getException().getMessage());
-                alert.initOwner(writeButton.getScene().getWindow());
-                alert.showAndWait();
-            }
-        });
-        worker.submit(task);
+            return true;
+        }
+        statusLabel.setText("Finishing the current operation before closing …");
+        writeButton.getScene().getRoot().setDisable(true);
+        return false;
     }
 
     @Override
     public void close()
     {
-        poller.stop();
-        worker.shutdownNow();
+        if (monitor != null)
+        {
+            monitor.close();
+        }
+        tasks.close();
     }
 }

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<HBox xmlns:fx="http://javafx.com/fxml/1" alignment="CENTER_LEFT" spacing="14" styleClass="link-row">
+    <Label fx:id="number" text="01" styleClass="row-number" minWidth="26"/>
+    <Label text="↗" styleClass="link-icon"/>
+    <Label fx:id="name" text="Link" styleClass="link-name" minWidth="100" prefWidth="100" maxWidth="100"/>
+    <TextField fx:id="urlField" promptText="https://…" HBox.hgrow="ALWAYS"/>
+    <Button fx:id="remove" text="×" styleClass="icon-button" accessibleText="Remove link"/>
+</HBox>

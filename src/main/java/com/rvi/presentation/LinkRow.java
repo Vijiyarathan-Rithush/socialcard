@@ -8,6 +8,8 @@ import javafx.scene.layout.HBox;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
+import java.util.Objects;
+import java.util.function.Consumer;
 
 final class LinkRow
 {
@@ -17,11 +19,12 @@ final class LinkRow
     private final Label name;
     private final Button remove;
 
-    LinkRow(final String url, final Runnable changed, final Runnable deleted)
+    LinkRow(final String url, final Runnable changed, final Consumer<LinkRow> deleted)
     {
         try
         {
-            final FXMLLoader loader = new FXMLLoader(getClass().getResource("link-row.fxml"));
+            final FXMLLoader loader = new FXMLLoader(Objects.requireNonNull(
+                    getClass().getResource("/presentation/link-row.fxml"), "Missing link-row.fxml resource."));
             root = loader.load();
             field = (TextField) loader.getNamespace().get("urlField");
             number = (Label) loader.getNamespace().get("number");
@@ -40,7 +43,7 @@ final class LinkRow
             updateName();
             changed.run();
         });
-        remove.setOnAction(event -> deleted.run());
+        remove.setOnAction(event -> deleted.accept(this));
     }
 
     HBox root()
@@ -56,7 +59,7 @@ final class LinkRow
     void number(final int index)
     {
         number.setText(String.format("%02d", index));
-        field.setAccessibleText("HTTPS-Link " + index);
+        field.setAccessibleText("HTTPS link " + index);
     }
 
     void focus()
