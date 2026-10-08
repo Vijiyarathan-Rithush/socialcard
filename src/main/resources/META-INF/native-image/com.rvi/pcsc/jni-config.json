@@ -1,0 +1,17 @@
+[
+  {
+    "name": "sun.security.smartcardio.PCSCException",
+    "methods": [
+      { "name": "<init>", "parameterTypes": ["int"] }
+    ]
+  },
+  {
+    "name": "java.lang.OutOfMemoryError",
+    "methods": [
+      { "name": "<init>", "parameterTypes": ["java.lang.String"] }
+    ]
+  },
+  {
+    "name": "java.lang.String"
+  }
+]

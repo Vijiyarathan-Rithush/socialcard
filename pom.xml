@@ -13,6 +13,9 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <javafx.version>27</javafx.version>
         <junit.version>5.13.4</junit.version>
+        <native.maven.plugin.version>1.1.14</native.maven.plugin.version>
+        <jfx.static.feature.version>1.0</jfx.static.feature.version>
+        <jfx.static.libs.version>27-1</jfx.static.libs.version>
     </properties>
 
     <dependencies>
@@ -26,7 +29,6 @@
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
             <version>1.6.5</version>
-            <scope>runtime</scope>
         </dependency>
 
         <dependency>
@@ -70,6 +72,9 @@
                 <configuration>
                     <!-- JavaFX is on the classpath in this non-modular test suite. -->
                     <argLine>--enable-native-access=ALL-UNNAMED</argLine>
+                    <systemPropertyVariables>
+                        <socialcard.log.dir>${project.build.directory}/logs</socialcard.log.dir>
+                    </systemPropertyVariables>
                 </configuration>
             </plugin>
 
@@ -86,5 +91,122 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>native</id>
+            <properties>
+                <graalvm.hosted.api.version>25.0.4</graalvm.hosted.api.version>
+                <skipNativeBuild>false</skipNativeBuild>
+                <!-- Stable archive entry timestamps; override for a release if required. -->
+                <project.build.outputTimestamp>2026-10-08T00:00:00Z</project.build.outputTimestamp>
+            </properties>
+            <!-- JavaFX 27 static archives must match the normal OpenJFX 27 jars. -->
+            <dependencies>
+                <dependency>
+                    <groupId>us.hebi.graalvm</groupId>
+                    <artifactId>jfx-static-feature</artifactId>
+                    <version>${jfx.static.feature.version}</version>
+                    <scope>runtime</scope>
+                </dependency>
+                <dependency>
+                    <groupId>us.hebi.graalvm</groupId>
+                    <artifactId>jfx-static-libs</artifactId>
+                    <version>${jfx.static.libs.version}</version>
+                    <scope>runtime</scope>
+                </dependency>
+                <!-- Hosted APIs are compiled only for the native build, never shipped as a JVM. -->
+                <dependency>
+                    <groupId>org.graalvm.sdk</groupId>
+                    <artifactId>nativeimage</artifactId>
+                    <version>${graalvm.hosted.api.version}</version>
+                    <scope>provided</scope>
+                </dependency>
+                <dependency>
+                    <groupId>org.graalvm.nativeimage</groupId>
+                    <artifactId>svm</artifactId>
+                    <version>${graalvm.hosted.api.version}</version>
+                    <scope>provided</scope>
+                </dependency>
+            </dependencies>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>build-helper-maven-plugin</artifactId>
+                        <version>3.6.1</version>
+                        <executions>
+                            <execution>
+                                <id>add-native-build-sources</id>
+                                <phase>generate-sources</phase>
+                                <goals>
+                                    <goal>add-source</goal>
+                                </goals>
+                                <configuration>
+                                    <sources>
+                                        <source>src/native/java</source>
+                                    </sources>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.graalvm.buildtools</groupId>
+                        <artifactId>native-maven-plugin</artifactId>
+                        <version>${native.maven.plugin.version}</version>
+                        <executions>
+                            <execution>
+                                <id>build-native-executable</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>compile-no-fork</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <mainClass>com.rvi.Main</mainClass>
+                            <imageName>SocialCard</imageName>
+                            <useArgFile>true</useArgFile>
+                            <metadataRepository>
+                                <enabled>true</enabled>
+                            </metadataRepository>
+                            <buildArgs>
+                                <buildArg>--no-fallback</buildArg>
+                                <buildArg>-march=compatibility</buildArg>
+                                <buildArg>--features=com.rvi.nativeimage.PcscNativeFeature</buildArg>
+                                <buildArg>--exact-reachability-metadata</buildArg>
+                                <buildArg>--enable-native-access=ALL-UNNAMED,java.smartcardio</buildArg>
+                                <buildArg>--initialize-at-run-time=org.slf4j,ch.qos.logback</buildArg>
+                            </buildArgs>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-assembly-plugin</artifactId>
+                        <version>3.8.0</version>
+                        <executions>
+                            <execution>
+                                <id>package-native-distribution</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>single</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <descriptors>
+                                <descriptor>src/assembly/native.xml</descriptor>
+                            </descriptors>
+                            <finalName>SocialCard-windows-x64</finalName>
+                            <appendAssemblyId>false</appendAssemblyId>
+                            <attach>false</attach>
+                            <skipAssembly>${skipNativeBuild}</skipAssembly>
+                            <outputTimestamp>${project.build.outputTimestamp}</outputTimestamp>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
 </project>

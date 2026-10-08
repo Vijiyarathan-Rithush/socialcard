@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assembly xmlns="http://maven.apache.org/ASSEMBLY/2.2.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/ASSEMBLY/2.2.0 https://maven.apache.org/xsd/assembly-2.2.0.xsd">
+    <id>native</id>
+    <formats>
+        <format>zip</format>
+    </formats>
+    <includeBaseDirectory>true</includeBaseDirectory>
+    <baseDirectory>SocialCard</baseDirectory>
+    <files>
+        <file>
+            <source>${project.build.directory}/SocialCard.exe</source>
+            <outputDirectory>/</outputDirectory>
+        </file>
+        <file>
+            <source>${project.basedir}/README.md</source>
+            <outputDirectory>/</outputDirectory>
+        </file>
+    </files>
+    <fileSets>
+        <fileSet>
+            <directory>${project.build.directory}</directory>
+            <outputDirectory>/</outputDirectory>
+            <includes>
+                <include>*.dll</include>
+            </includes>
+        </fileSet>
+        <fileSet>
+            <directory>${java.home}/legal</directory>
+            <outputDirectory>third-party/graalvm/legal</outputDirectory>
+        </fileSet>
+        <fileSet>
+            <directory>${java.home}</directory>
+            <outputDirectory>third-party/graalvm</outputDirectory>
+            <includes>
+                <include>LICENSE.txt</include>
+                <include>NOTICE.txt</include>
+                <include>license-information-user-manual.zip</include>
+            </includes>
+        </fileSet>
+    </fileSets>
+</assembly>

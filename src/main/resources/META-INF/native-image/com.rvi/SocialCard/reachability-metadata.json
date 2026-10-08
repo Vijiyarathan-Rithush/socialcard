@@ -1,0 +1,157 @@
+{
+  "reflection": [
+    {
+      "type": "com.rvi.presentation.NfcStudioApplication",
+      "methods": [
+        { "name": "<init>", "parameterTypes": [] }
+      ]
+    },
+    {
+      "type": "com.rvi.presentation.StudioController",
+      "fields": [
+        { "name": "readerChoice" },
+        { "name": "refreshButton" },
+        { "name": "linksBox" },
+        { "name": "addButton" },
+        { "name": "readButton" },
+        { "name": "writeButton" },
+        { "name": "readerStatus" },
+        { "name": "cardName" },
+        { "name": "cardState" },
+        { "name": "capacityLabel" },
+        { "name": "validationLabel" },
+        { "name": "countLabel" },
+        { "name": "footerCount" },
+        { "name": "statusLabel" },
+        { "name": "busyLabel" },
+        { "name": "memoryBar" }
+      ],
+      "methods": [
+        { "name": "initialize", "parameterTypes": [] },
+        { "name": "refreshReaders", "parameterTypes": [] },
+        { "name": "addLink", "parameterTypes": [] },
+        { "name": "readCard", "parameterTypes": [] },
+        { "name": "writeCard", "parameterTypes": [] }
+      ]
+    },
+    {
+      "type": "javafx.scene.layout.BorderPane",
+      "allPublicConstructors": true,
+      "allPublicMethods": true
+    },
+    {
+      "type": "javafx.scene.layout.HBox",
+      "allPublicConstructors": true,
+      "allPublicMethods": true
+    },
+    {
+      "type": "javafx.scene.layout.VBox",
+      "allPublicConstructors": true,
+      "allPublicMethods": true
+    },
+    {
+      "type": "javafx.scene.layout.Region",
+      "allPublicConstructors": true,
+      "allPublicMethods": true
+    },
+    {
+      "type": "javafx.scene.control.Button",
+      "allPublicConstructors": true,
+      "allPublicMethods": true
+    },
+    {
+      "type": "javafx.scene.control.Label",
+      "allPublicConstructors": true,
+      "allPublicMethods": true
+    },
+    {
+      "type": "javafx.scene.control.ComboBox",
+      "allPublicConstructors": true,
+      "allPublicMethods": true
+    },
+    {
+      "type": "javafx.scene.control.TextField",
+      "allPublicConstructors": true,
+      "allPublicMethods": true
+    },
+    {
+      "type": "javafx.scene.control.ScrollPane",
+      "allPublicConstructors": true,
+      "allPublicMethods": true
+    },
+    {
+      "type": "javafx.scene.control.Separator",
+      "allPublicConstructors": true,
+      "allPublicMethods": true
+    },
+    {
+      "type": "javafx.scene.control.ProgressBar",
+      "allPublicConstructors": true,
+      "allPublicMethods": true
+    },
+    {
+      "type": "javafx.geometry.Insets",
+      "allPublicConstructors": true,
+      "allPublicMethods": true
+    },
+    {
+      "type": "javafx.geometry.Pos",
+      "allPublicMethods": true,
+      "allDeclaredFields": true
+    },
+    {
+      "type": "javafx.scene.layout.Priority",
+      "allPublicMethods": true,
+      "allDeclaredFields": true
+    },
+    {
+      "type": "javafx.scene.control.ScrollPane$ScrollBarPolicy",
+      "allPublicMethods": true,
+      "allDeclaredFields": true
+    },
+    {
+      "type": "ch.qos.logback.classic.util.DefaultJoranConfigurator",
+      "allPublicConstructors": true
+    },
+    {
+      "type": "ch.qos.logback.classic.BasicConfigurator",
+      "allPublicConstructors": true
+    },
+    {
+      "type": "ch.qos.logback.core.ConsoleAppender",
+      "allPublicConstructors": true,
+      "allPublicMethods": true
+    },
+    {
+      "type": "ch.qos.logback.classic.encoder.PatternLayoutEncoder",
+      "allPublicConstructors": true,
+      "allPublicMethods": true
+    },
+    {
+      "type": "ch.qos.logback.core.rolling.RollingFileAppender",
+      "allPublicConstructors": true,
+      "allPublicMethods": true
+    },
+    {
+      "type": "ch.qos.logback.core.rolling.FixedWindowRollingPolicy",
+      "allPublicConstructors": true,
+      "allPublicMethods": true
+    },
+    {
+      "type": "ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy",
+      "allPublicConstructors": true,
+      "allPublicMethods": true
+    },
+    {
+      "type": "ch.qos.logback.core.util.FileSize",
+      "methods": [
+        { "name": "valueOf", "parameterTypes": ["java.lang.String"] }
+      ]
+    }
+  ],
+  "resources": [
+    { "glob": "presentation/**" },
+    { "glob": "logback.xml" },
+    { "glob": "META-INF/services/org.slf4j.spi.SLF4JServiceProvider" }
+  ]
+}

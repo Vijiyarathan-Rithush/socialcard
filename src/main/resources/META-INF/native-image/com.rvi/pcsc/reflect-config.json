@@ -1,0 +1,14 @@
+[
+  {
+    "name": "sun.security.smartcardio.SunPCSC",
+    "methods": [
+      { "name": "<init>", "parameterTypes": [] }
+    ]
+  },
+  {
+    "name": "sun.security.smartcardio.SunPCSC$Factory",
+    "methods": [
+      { "name": "<init>", "parameterTypes": ["java.lang.Object"] }
+    ]
+  }
+]
