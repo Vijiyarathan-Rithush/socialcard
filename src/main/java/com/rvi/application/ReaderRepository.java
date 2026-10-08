@@ -1,10 +1,7 @@
 package com.rvi.application;
 
 import com.rvi.domain.NDefMessage;
-import com.rvi.service.ReaderService;
 import com.rvi.service.exception.ReaderServiceException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import javax.smartcardio.CardChannel;
 import javax.smartcardio.CardException;
@@ -15,24 +12,52 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 public final class ReaderRepository implements IReaderRepository
 {
-    private static final Logger LOGGER = LoggerFactory.getLogger(ReaderRepository.class);
+    private static final String HTTPS_SCHEME = "https";
+    private static final String HTTPS_URI_PREFIX = "https://";
+
+    private static final int MAX_URI_SUFFIX_BYTES = 249;
+    private static final int MAX_SHORT_NDEF_LENGTH = 254;
+
+    private static final int NDEF_TLV = 0x03;
+    private static final int TERMINATOR = 0xFE;
+    private static final int TYPE_LENGTH = 0x01;
+    private static final int URI_TYPE = 0x55;
+    private static final int HTTPS_PREFIX = 0x04;
+
+    private static final int SINGLE_RECORD_HEADER = 0xD1;
+    private static final int FIRST_RECORD_HEADER = 0x91;
+    private static final int LAST_RECORD_HEADER = 0x51;
+    private static final int MIDDLE_RECORD_HEADER = 0x11;
+
+    private static final int URI_PREFIX_BYTES = 1;
+    private static final int URI_RECORD_OVERHEAD = 4;
+    private static final int TLV_OVERHEAD = 3;
+    private static final int TLV_TYPE_OFFSET = 0;
+    private static final int TLV_LENGTH_OFFSET = 1;
+    private static final int EXTENDED_TLV_LENGTH_MARKER = 0xFF;
+    private static final int EMPTY_NDEF_LENGTH = 0x00;
+    private static final byte PADDING_BYTE = 0x00;
+
+    private static final int PAGE_SIZE_BYTES = 4;
+    private static final int FIRST_USER_PAGE = 4;
+    private static final int LAST_USER_PAGE = 129;
+    private static final int USER_MEMORY_BYTES = (LAST_USER_PAGE - FIRST_USER_PAGE + 1) * PAGE_SIZE_BYTES;
+
+    private static final int APDU_CLASS = 0xFF;
+    private static final int READ_BINARY_INSTRUCTION = 0xB0;
+    private static final int UPDATE_BINARY_INSTRUCTION = 0xD6;
+    private static final int APDU_PARAMETER_ONE = 0x00;
+    private static final int SUCCESS_STATUS = 0x9000;
+
     private final CardChannel cardChannel;
-    private static final int URL_LENGTH = 249;
-    private static final byte NDEF_TLV = 0x03;
-    private static final byte TERMINATOR = (byte) 0xFE;
-    private static final byte RECORD_HEADER = (byte) 0xD1;
-    private static final byte TYPE_LENGTH = 0x01;
-    private static final byte URI_TYPE = 0x55;
-    private static final byte HTTPS_PREFIX = 0x04;
-    private static final byte CLA = (byte) 0xFF;
-    private static final byte P1 = 0x00;
 
     public ReaderRepository(final CardChannel cardChannel)
     {
-        this.cardChannel = cardChannel;
+        this.cardChannel = Objects.requireNonNull(cardChannel, "Card channel is missing");
     }
 
     @Override
@@ -77,65 +102,64 @@ public final class ReaderRepository implements IReaderRepository
             }
 
             final byte[] urlBytes = getUrlBytes(uri);
-            final int payloadLength = urlBytes.length + 1;
+            final int payloadLength = urlBytes.length + URI_PREFIX_BYTES;
+            final int recordLength = payloadLength + URI_RECORD_OVERHEAD;
 
-            if (records.size() + payloadLength + 4 > 254)
+            if (records.size() + recordLength > MAX_SHORT_NDEF_LENGTH)
             {
-                throw new ReaderServiceException("Combined NDEF message exceeds 254 bytes");
+                throw new ReaderServiceException("Combined NDEF message exceeds " + MAX_SHORT_NDEF_LENGTH + " bytes");
             }
 
             records.write(getRecordHeader(index, urls.size()));
-            records.write(0x01);
+            records.write(TYPE_LENGTH);
             records.write(payloadLength);
-            records.write(0x55);
-            records.write(0x04);
+            records.write(URI_TYPE);
+            records.write(HTTPS_PREFIX);
             records.writeBytes(urlBytes);
         }
 
         final ByteArrayOutputStream output = new ByteArrayOutputStream();
 
-        output.write(0x03);
+        output.write(NDEF_TLV);
         output.write(records.size());
         output.writeBytes(records.toByteArray());
-        output.write(0xFE);
+        output.write(TERMINATOR);
 
         return new NDefMessage(output.toByteArray());
     }
 
-    private static int getRecordHeader(
-            final int index,
-            final int recordCount)
+    private static int getRecordHeader(final int index, final int recordCount)
     {
         if (recordCount == 1)
         {
-            return 0xD1;
+            return SINGLE_RECORD_HEADER;
         }
 
         if (index == 0)
         {
-            return 0x91;
+            return FIRST_RECORD_HEADER;
         }
 
         if (index == recordCount - 1)
         {
-            return 0x51;
+            return LAST_RECORD_HEADER;
         }
 
-        return 0x11;
+        return MIDDLE_RECORD_HEADER;
     }
 
     private static byte[] getUrlBytes(final URI uri)
     {
-        if(!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null || uri.getUserInfo() != null)
+        if (!HTTPS_SCHEME.equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null || uri.getUserInfo() != null)
         {
             throw new ReaderServiceException("Expected a valid HTTPS URL");
         }
 
         final String asciiUrl = uri.toASCIIString();
-        final String rest = asciiUrl.substring("https://".length());
-        final byte[] urlBytes = rest.getBytes(StandardCharsets.UTF_8);
+        final String uriSuffix = asciiUrl.substring(HTTPS_URI_PREFIX.length());
+        final byte[] urlBytes = uriSuffix.getBytes(StandardCharsets.UTF_8);
 
-        if (urlBytes.length > URL_LENGTH)
+        if (urlBytes.length > MAX_URI_SUFFIX_BYTES)
         {
             throw new ReaderServiceException("URL is too long");
         }
@@ -146,21 +170,20 @@ public final class ReaderRepository implements IReaderRepository
     @Override
     public NDefMessage read() throws CardException
     {
-        final byte[] firstPage = readPage(4);
-        final int length = Byte.toUnsignedInt(firstPage[1]);
+        final byte[] firstPage = readPage(FIRST_USER_PAGE);
+        final int ndefLength = Byte.toUnsignedInt(firstPage[TLV_LENGTH_OFFSET]);
 
-        if (firstPage[0] != NDEF_TLV || length == 0 || length == 255)
+        if (Byte.toUnsignedInt(firstPage[TLV_TYPE_OFFSET]) != NDEF_TLV || ndefLength == EMPTY_NDEF_LENGTH || ndefLength == EXTENDED_TLV_LENGTH_MARKER)
         {
             throw new CardException("Unsupported or empty NDEF message");
         }
 
         final ByteArrayOutputStream output = new ByteArrayOutputStream();
-
         output.writeBytes(firstPage);
 
-        final int totalLength = length + 3;
+        final int totalLength = ndefLength + TLV_OVERHEAD;
 
-        for (int page = 5; output.size() < totalLength; page++)
+        for (int page = FIRST_USER_PAGE + 1; output.size() < totalLength; page++)
         {
             output.writeBytes(readPage(page));
         }
@@ -171,18 +194,29 @@ public final class ReaderRepository implements IReaderRepository
     @Override
     public void write(final NDefMessage message) throws CardException
     {
+        Objects.requireNonNull(message, "NDEF message is missing");
+
         final byte[] data = message.data();
-        final int paddedLength = ((data.length + 3) / 4) * 4;
-        final byte[] padded = Arrays.copyOf(data, paddedLength);
+        final int paddedLength = ((data.length + PAGE_SIZE_BYTES - 1) / PAGE_SIZE_BYTES) * PAGE_SIZE_BYTES;
 
-        writePage(4, new byte[] {NDEF_TLV, 0x00, TERMINATOR, 0x00});
-
-        for (int offset = 4; offset < padded.length; offset += 4)
+        if (paddedLength > USER_MEMORY_BYTES)
         {
-            writePage(4 + offset / 4,Arrays.copyOfRange(padded, offset, offset + 4));
+            throw new IllegalArgumentException("Message exceeds NTAG215 user memory");
         }
 
-        writePage(4, Arrays.copyOfRange(padded, 0, 4));
+        final byte[] padded = Arrays.copyOf(data, paddedLength);
+
+        writePage(FIRST_USER_PAGE, new byte[] {(byte) NDEF_TLV, (byte) EMPTY_NDEF_LENGTH, (byte) TERMINATOR, PADDING_BYTE});
+
+        for (int offset = PAGE_SIZE_BYTES; offset < padded.length; offset += PAGE_SIZE_BYTES)
+        {
+            final int page = FIRST_USER_PAGE + offset / PAGE_SIZE_BYTES;
+            final byte[] pageData = Arrays.copyOfRange(padded, offset, offset + PAGE_SIZE_BYTES);
+
+            writePage(page, pageData);
+        }
+
+        writePage(FIRST_USER_PAGE, Arrays.copyOfRange(padded, 0, PAGE_SIZE_BYTES));
 
         if (!Arrays.equals(data, read().data()))
         {
@@ -192,20 +226,21 @@ public final class ReaderRepository implements IReaderRepository
 
     private byte[] readPage(final int page) throws CardException
     {
-        final CommandAPDU command = new CommandAPDU(CLA, 0xB0, P1, page, 4);
+        validatePage(page);
 
+        final CommandAPDU command = new CommandAPDU(APDU_CLASS, READ_BINARY_INSTRUCTION, APDU_PARAMETER_ONE, page, PAGE_SIZE_BYTES);
         final ResponseAPDU response = cardChannel.transmit(command);
 
-        if (response.getSW() != 0x9000)
+        if (response.getSW() != SUCCESS_STATUS)
         {
-            throw new CardException(String.format("Reading page %d failed: %04X",page, response.getSW()));
+            throw new CardException(String.format("Reading page %d failed: %04X", page, response.getSW()));
         }
 
         final byte[] data = response.getData();
 
-        if (data.length != 4)
+        if (data.length != PAGE_SIZE_BYTES)
         {
-            throw new CardException("Expected four bytes");
+            throw new CardException("Expected " + PAGE_SIZE_BYTES + " bytes");
         }
 
         return data;
@@ -213,22 +248,27 @@ public final class ReaderRepository implements IReaderRepository
 
     private void writePage(final int page, final byte[] data) throws CardException
     {
-        if (page < 4 || page > 129)
+        validatePage(page);
+
+        if (data == null || data.length != PAGE_SIZE_BYTES)
         {
-            throw new IllegalArgumentException("NTAG215 user pages range from 4 to 129");
+            throw new IllegalArgumentException("Expected " + PAGE_SIZE_BYTES + " bytes");
         }
 
-        if (data == null || data.length != 4)
-        {
-            throw new IllegalArgumentException("Expected four bytes");
-        }
-
-        final CommandAPDU command = new CommandAPDU(CLA, 0xD6, P1, page, data);
+        final CommandAPDU command = new CommandAPDU(APDU_CLASS, UPDATE_BINARY_INSTRUCTION, APDU_PARAMETER_ONE, page, data);
         final ResponseAPDU response = cardChannel.transmit(command);
 
-        if (response.getSW() != 0x9000)
+        if (response.getSW() != SUCCESS_STATUS)
         {
-            throw new CardException(String.format("Writing page %d failed: %04X",page, response.getSW()));
+            throw new CardException(String.format("Writing page %d failed: %04X", page, response.getSW()));
+        }
+    }
+
+    private static void validatePage(final int page)
+    {
+        if (page < FIRST_USER_PAGE || page > LAST_USER_PAGE)
+        {
+            throw new IllegalArgumentException("NTAG215 user pages range from " + FIRST_USER_PAGE + " to " + LAST_USER_PAGE);
         }
     }
 }
