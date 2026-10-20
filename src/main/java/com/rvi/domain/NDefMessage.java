@@ -1,5 +1,6 @@
 package com.rvi.domain;
-import com.rvi.domain.exception.*;
+
+import com.rvi.domain.exception.NDefMessageException;
 
 public record NDefMessage(byte[] data)
 {
