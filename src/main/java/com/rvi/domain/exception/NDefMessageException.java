@@ -1,6 +1,6 @@
 package com.rvi.domain.exception;
 
-public class NDefMessageException extends RuntimeException
+public final class NDefMessageException extends RuntimeException
 {
     public NDefMessageException(String message)
     {

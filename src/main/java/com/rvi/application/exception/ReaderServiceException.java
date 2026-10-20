@@ -1,4 +1,4 @@
-package com.rvi.service.exception;
+package com.rvi.application.exception;
 
 public class ReaderServiceException extends RuntimeException
 {

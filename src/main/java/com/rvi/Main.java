@@ -9,7 +9,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.smartcardio.*;
-import java.util.HexFormat;
 import java.util.List;
 
 public class Main
@@ -43,8 +42,6 @@ public class Main
             final IReaderService service = new ReaderService(repository);
 
             final NDefMessage message = service.encodeURIs(List.of("https://github.com/Vijiyarathan-Rithush/socialcard", "https://github.com/Vijiyarathan-Rithush/socialcard/tree/main/src/main/java/com/rvi", "https://www.youtube.com/"));
-
-            service.write(message);
 
             service.write(message);
             LOGGER.info("Link saved successfully");

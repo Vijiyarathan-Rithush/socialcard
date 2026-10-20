@@ -1,6 +1,5 @@
 package com.rvi.domain;
-
-import com.rvi.domain.exception.NDefMessageException;
+import com.rvi.domain.exception.*;
 
 public record NDefMessage(byte[] data)
 {
@@ -122,5 +121,11 @@ public record NDefMessage(byte[] data)
             recordOffset = nextRecordOffset;
             firstRecord = false;
         }
+    }
+
+    @Override
+    public byte[] data()
+    {
+        return data.clone();
     }
 }

@@ -1,30 +1,27 @@
 package com.rvi.service;
 
 import com.rvi.application.IReaderRepository;
+import com.rvi.application.NDefEncoder;
 import com.rvi.domain.NDefMessage;
-import com.rvi.service.exception.ReaderServiceException;
 
-import javax.smartcardio.CardChannel;
 import javax.smartcardio.CardException;
-import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.logging.LogManager;
-import java.util.logging.Logger;
+import java.util.Objects;
 
 public final class ReaderService implements IReaderService
 {
     private final IReaderRepository repository;
+    private final NDefEncoder encoder = new NDefEncoder();
 
     public ReaderService(final IReaderRepository repository)
     {
-        this.repository = repository;
+        this.repository = Objects.requireNonNull(repository, "repository is null");
     }
 
     @Override
     public NDefMessage encodeURI(final String message)
     {
-        return repository.encodeURI(message);
+        return encoder.encodeURI(message);
     }
 
     @Override
@@ -42,6 +39,6 @@ public final class ReaderService implements IReaderService
     @Override
     public NDefMessage encodeURIs(List<String> urls)
     {
-        return repository.encodeURIs(urls);
+        return encoder.encodeURIs(urls);
     }
 }
