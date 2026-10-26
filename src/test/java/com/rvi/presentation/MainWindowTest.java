@@ -2,6 +2,12 @@ package com.rvi.presentation;
 
 import com.rvi.application.ReaderStatus;
 import org.jline.utils.AttributedString;
+import org.jline.utils.Display;
+import org.jline.terminal.Size;
+import org.jline.terminal.impl.DumbTerminal;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
 import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
@@ -71,6 +77,29 @@ class MainWindowTest
         assertTrue(plain(window, 40, 10).contains("vergrössern"));
         assertTrue(window.render(40, 10, 0).stream().allMatch(line -> line.columnLength() < 40));
         assertTrue(plain(window, 80, 24).contains("FEHLER"));
+    }
+
+    @Test
+    void jlineCanUpdateAndResizeRenderedFrames() throws Exception
+    {
+        final MainWindow window = new MainWindow();
+        window.setReaders(List.of("ACS ACR122U"));
+        try (DumbTerminal terminal = new DumbTerminal("test", "windows",
+                new ByteArrayInputStream(new byte[0]), new ByteArrayOutputStream(), StandardCharsets.UTF_8))
+        {
+            final Display display = new Display(terminal, true);
+            for (int height : new int[] {24, 30, 22, 10, 24})
+            {
+                terminal.setSize(new Size(80, height));
+                display.resize(height, 80);
+                for (int frame = 0; frame < 8; frame++)
+                {
+                    window.showMessage("Event " + frame, false);
+                    if (frame == 4) { display.clear(); }
+                    display.update(window.render(80, height, frame), 0);
+                }
+            }
+        }
     }
 
     private static String plain(MainWindow window, int width, int height)

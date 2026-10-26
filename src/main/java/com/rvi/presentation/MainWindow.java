@@ -198,8 +198,10 @@ public final class MainWindow
 
     private static List<AttributedString> fit(final List<AttributedString> lines, final int width, final int height)
     {
+        // JLine retains and mutates frames during scrolling and full redraws.
         return lines.stream().limit(Math.max(1, height)).map(value ->
-                value.columnSubSequence(0, Math.max(1, width - 1))).toList();
+                value.columnSubSequence(0, Math.max(1, width - 1)))
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
     }
 
     private static String clean(final String text)
