@@ -29,6 +29,8 @@ a time. Each card is written and verified; remove it before presenting the
 next one. The link remains locked during a series. Stopping disables further
 writes and allows the current write to complete.
 
+All interface labels and status messages are in English.
+
 The view includes the selected reader, destination, live state, verified-card
 counter and the three most recent events. It keeps 100 events in memory.
 The layout adapts to terminal size and shows a resize hint below 60 columns

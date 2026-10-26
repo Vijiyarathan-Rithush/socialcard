@@ -1,8 +1,9 @@
 package com.rvi.application;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import org.junit.jupiter.api.Test;
 
-import javax.smartcardio.*;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
@@ -10,7 +11,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.junit.jupiter.api.Assertions.*;
+import javax.smartcardio.*;
 
 class ReaderListenerTest
 {
@@ -58,7 +59,8 @@ class ReaderListenerTest
             listener.deactivate();
             assertTrue(listener.isWriting());
             assertEquals(ReaderStatus.State.STOPPING, updates.getLast().state());
-            assertThrows(IllegalStateException.class,
+            assertThrows(
+                    IllegalStateException.class,
                     () -> listener.activate(new NDefEncoder().encodeURI("https://other.example")));
         }
         finally
@@ -79,30 +81,76 @@ class ReaderListenerTest
         private final FakeCard card = new FakeCard();
         private int connections;
         private boolean fail;
-        public String getName() { return "Test reader"; }
+
+        public String getName()
+        {
+            return "Test reader";
+        }
+
         public Card connect(String protocol) throws CardException
         {
             connections++;
-            if (fail) { throw new CardException("Card removed"); }
+            if (fail)
+            {
+                throw new CardException("Card removed");
+            }
             return card;
         }
-        public boolean isCardPresent() { return true; }
-        public boolean waitForCardPresent(long timeout) { return true; }
-        public boolean waitForCardAbsent(long timeout) { return false; }
+
+        public boolean isCardPresent()
+        {
+            return true;
+        }
+
+        public boolean waitForCardPresent(long timeout)
+        {
+            return true;
+        }
+
+        public boolean waitForCardAbsent(long timeout)
+        {
+            return false;
+        }
     }
 
     private static final class FakeCard extends Card
     {
         private final FakeChannel channel = new FakeChannel();
         private boolean disconnected;
-        public ATR getATR() { return new ATR(new byte[] {0x3B, 0}); }
-        public String getProtocol() { return "T=1"; }
-        public CardChannel getBasicChannel() { return channel; }
-        public CardChannel openLogicalChannel() { throw new UnsupportedOperationException(); }
+
+        public ATR getATR()
+        {
+            return new ATR(new byte[] {0x3B, 0});
+        }
+
+        public String getProtocol()
+        {
+            return "T=1";
+        }
+
+        public CardChannel getBasicChannel()
+        {
+            return channel;
+        }
+
+        public CardChannel openLogicalChannel()
+        {
+            throw new UnsupportedOperationException();
+        }
+
         public void beginExclusive() {}
+
         public void endExclusive() {}
-        public byte[] transmitControlCommand(int code, byte[] data) { throw new UnsupportedOperationException(); }
-        public void disconnect(boolean reset) { disconnected = true; }
+
+        public byte[] transmitControlCommand(int code, byte[] data)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        public void disconnect(boolean reset)
+        {
+            disconnected = true;
+        }
     }
 
     private static final class FakeChannel extends CardChannel
@@ -110,8 +158,17 @@ class ReaderListenerTest
         private final byte[] memory = new byte[520];
         private CountDownLatch entered;
         private CountDownLatch release;
-        public Card getCard() { throw new UnsupportedOperationException(); }
-        public int getChannelNumber() { return 0; }
+
+        public Card getCard()
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        public int getChannelNumber()
+        {
+            return 0;
+        }
+
         public ResponseAPDU transmit(CommandAPDU command) throws CardException
         {
             if (entered != null)
@@ -119,7 +176,10 @@ class ReaderListenerTest
                 entered.countDown();
                 try
                 {
-                    if (!release.await(2, TimeUnit.SECONDS)) { throw new CardException("Timed out"); }
+                    if (!release.await(2, TimeUnit.SECONDS))
+                    {
+                        throw new CardException("Timed out");
+                    }
                 }
                 catch (InterruptedException exception)
                 {
@@ -138,7 +198,12 @@ class ReaderListenerTest
             response[5] = 0;
             return new ResponseAPDU(response);
         }
-        public int transmit(ByteBuffer command, ByteBuffer response) { throw new UnsupportedOperationException(); }
+
+        public int transmit(ByteBuffer command, ByteBuffer response)
+        {
+            throw new UnsupportedOperationException();
+        }
+
         public void close() {}
     }
 }

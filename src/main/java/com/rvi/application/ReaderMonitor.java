@@ -1,22 +1,26 @@
 package com.rvi.application;
 
-import javax.smartcardio.CardException;
-import javax.smartcardio.CardTerminal;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import javax.smartcardio.CardException;
+import javax.smartcardio.CardTerminal;
 
 public final class ReaderMonitor implements AutoCloseable
 {
+    private static final int CARD_POLL_TIMEOUT_MILLIS = 500;
+
     private final CardTerminal terminal;
     private final IReaderListener listener;
 
-    private boolean closed;
     private final AtomicBoolean started = new AtomicBoolean();
     private final AtomicBoolean running = new AtomicBoolean();
-    private static final int TIMEOUT = 500;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
+
+    private boolean closed;
 
     public ReaderMonitor(final CardTerminal terminal, final IReaderListener listener)
     {
@@ -44,7 +48,7 @@ public final class ReaderMonitor implements AutoCloseable
         {
             while (running.get())
             {
-                if (!terminal.waitForCardPresent(TIMEOUT))
+                if (!terminal.waitForCardPresent(CARD_POLL_TIMEOUT_MILLIS))
                 {
                     continue;
                 }
@@ -57,7 +61,7 @@ public final class ReaderMonitor implements AutoCloseable
 
                 while (running.get())
                 {
-                    if (terminal.waitForCardAbsent(TIMEOUT))
+                    if (terminal.waitForCardAbsent(CARD_POLL_TIMEOUT_MILLIS))
                     {
                         if (running.get())
                         {
@@ -66,14 +70,13 @@ public final class ReaderMonitor implements AutoCloseable
                         break;
                     }
                 }
-
             }
         }
-        catch (CardException | RuntimeException ex)
+        catch (CardException | RuntimeException exception)
         {
             if (running.get())
             {
-                listener.onError(ex);
+                listener.onError(exception);
             }
         }
         finally
@@ -85,7 +88,7 @@ public final class ReaderMonitor implements AutoCloseable
 
     public void awaitStopped() throws InterruptedException
     {
-        while (!executor.awaitTermination(1, java.util.concurrent.TimeUnit.SECONDS))
+        while (!executor.awaitTermination(1, TimeUnit.SECONDS))
         {
             // Finish an in-flight card operation before releasing the application.
         }

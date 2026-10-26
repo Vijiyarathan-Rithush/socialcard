@@ -5,23 +5,31 @@ import com.rvi.application.ReaderListener;
 import com.rvi.application.ReaderMonitor;
 import com.rvi.application.ReaderStatus;
 import com.rvi.domain.NDefMessage;
-import org.jline.keymap.KeyMap;
+
 import org.jline.keymap.BindingReader;
+import org.jline.keymap.KeyMap;
 import org.jline.terminal.Attributes;
 import org.jline.terminal.Terminal;
 import org.jline.terminal.TerminalBuilder;
 import org.jline.utils.Display;
 import org.jline.utils.InfoCmp.Capability;
 
-import javax.smartcardio.CardException;
-import javax.smartcardio.CardTerminal;
-import javax.smartcardio.TerminalFactory;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
+import javax.smartcardio.CardException;
+import javax.smartcardio.CardTerminal;
+import javax.smartcardio.TerminalFactory;
+
 public final class ConsoleApplication
 {
+    private static final long INPUT_TIMEOUT_MILLIS = 80;
+    private static final long ANIMATION_FRAME_NANOS = 150_000_000L;
+    private static final String ENABLE_BRACKETED_PASTE = "\033[?2004h";
+    private static final String DISABLE_BRACKETED_PASTE = "\033[?2004l";
+
     private final List<ReaderMonitor> monitors = new ArrayList<>();
     private final ConcurrentLinkedQueue<Runnable> events = new ConcurrentLinkedQueue<>();
     private final MainWindow window = new MainWindow();
@@ -36,54 +44,87 @@ public final class ConsoleApplication
 
     public void run() throws Exception
     {
-        try (Terminal terminal = TerminalBuilder.builder().name("SocialCard")
-                .system(true).provider("jni").dumb(false).build())
+        try (Terminal terminal =
+                TerminalBuilder.builder()
+                        .name("SocialCard")
+                        .system(true)
+                        .provider("jni")
+                        .dumb(false)
+                        .build())
         {
             final Attributes original = terminal.enterRawMode();
-            final Terminal.SignalHandler previous = terminal.handle(Terminal.Signal.INT,
-                    signal -> events.add(this::exit));
+            final Terminal.SignalHandler previous =
+                    terminal.handle(Terminal.Signal.INT, signal -> events.add(this::exit));
             try
             {
                 terminal.puts(Capability.enter_ca_mode);
                 terminal.puts(Capability.cursor_invisible);
-                terminal.writer().print("\033[?2004h");
+                terminal.writer().print(ENABLE_BRACKETED_PASTE);
                 terminal.flush();
-                final Display display = new Display(terminal, true);
-                final BindingReader reader = new BindingReader(terminal.reader());
-                final KeyMap<String> keys = bindings();
-                refresh();
-                while (!finished)
-                {
-                    Runnable event;
-                    while ((event = events.poll()) != null) { event.run(); }
-                    if (finished) { break; }
-                    final int width = Math.max(1, terminal.getWidth());
-                    final int height = Math.max(1, terminal.getHeight());
-                    display.resize(height, width);
-                    display.update(window.render(width, height, System.nanoTime() / 150_000_000L), 0);
-                    if (reader.peekCharacter(80) == -1) { exit(); continue; }
-                    if (reader.peekCharacter(1) < 0) { continue; }
-                    final String key = reader.readBinding(keys);
-                    if (key != null) { handle(key, reader.getLastBinding()); }
-                }
+                runEventLoop(terminal);
             }
             finally
             {
-                if (listener != null) { listener.deactivate(); }
+                if (listener != null)
+                {
+                    listener.deactivate();
+                }
                 monitors.forEach(ReaderMonitor::close);
                 try
                 {
-                    for (final ReaderMonitor monitor : monitors) { monitor.awaitStopped(); }
+                    for (final ReaderMonitor monitor : monitors)
+                    {
+                        monitor.awaitStopped();
+                    }
                 }
                 finally
                 {
-                    terminal.writer().print("\033[?2004l");
+                    terminal.writer().print(DISABLE_BRACKETED_PASTE);
                     terminal.puts(Capability.cursor_normal);
                     terminal.puts(Capability.exit_ca_mode);
                     terminal.setAttributes(original);
                     terminal.handle(Terminal.Signal.INT, previous);
                     terminal.flush();
                 }
+            }
+        }
+    }
+
+    private void runEventLoop(final Terminal terminal) throws IOException
+    {
+        final Display display = new Display(terminal, true);
+        final BindingReader reader = new BindingReader(terminal.reader());
+        final KeyMap<String> keys = bindings();
+        refresh();
+        while (!finished)
+        {
+            Runnable event;
+            while ((event = events.poll()) != null)
+            {
+                event.run();
+            }
+            if (finished)
+            {
+                break;
+            }
+            final int width = Math.max(1, terminal.getWidth());
+            final int height = Math.max(1, terminal.getHeight());
+            display.resize(height, width);
+            display.update(
+                    window.render(width, height, System.nanoTime() / ANIMATION_FRAME_NANOS), 0);
+            if (reader.peekCharacter(INPUT_TIMEOUT_MILLIS) == -1)
+            {
+                exit();
+                continue;
+            }
+            if (reader.peekCharacter(1) < 0)
+            {
+                continue;
+            }
+            final String key = reader.readBinding(keys);
+            if (key != null)
+            {
+                handle(key, reader.getLastBinding());
             }
         }
     }
@@ -110,12 +151,26 @@ public final class ConsoleApplication
 
     private void handle(final String key, final String text)
     {
-        if (key.equals("PASTE_START")) { pasting = true; return; }
-        if (key.equals("PASTE_END")) { pasting = false; return; }
-        if (closing) { return; }
+        if (key.equals("PASTE_START"))
+        {
+            pasting = true;
+            return;
+        }
+        if (key.equals("PASTE_END"))
+        {
+            pasting = false;
+            return;
+        }
+        if (closing)
+        {
+            return;
+        }
         if (pasting)
         {
-            if (key.equals("TEXT")) { window.insert(text); }
+            if (key.equals("TEXT"))
+            {
+                window.insert(text);
+            }
             return;
         }
         switch (key)
@@ -128,16 +183,33 @@ public final class ConsoleApplication
             case "RIGHT", "NEXT" -> window.move(1);
             case "ENTER" ->
             {
-                if (window.isActive()) { stop(); }
-                else if (window.focus() == 0) { window.nextFocus(); }
-                else { activate(); }
+                if (window.isActive())
+                {
+                    stop();
+                }
+                else if (window.focus() == MainWindow.Focus.READER)
+                {
+                    window.nextFocus();
+                }
+                else
+                {
+                    activate();
+                }
             }
             case "TEXT" ->
             {
-                if (window.focus() != 1 && text.equalsIgnoreCase("r") && !window.isActive()) { refresh(); }
-                else { window.insert(text); }
+                if (window.focus() != MainWindow.Focus.DESTINATION
+                        && text.equalsIgnoreCase("r")
+                        && !window.isActive())
+                        {
+                    refresh();
+                }
+                else
+                {
+                    window.insert(text);
+                }
             }
-            default -> { }
+            default -> {}
         }
     }
 
@@ -147,15 +219,17 @@ public final class ConsoleApplication
         {
             terminals = TerminalFactory.getDefault().terminals().list();
             window.setReaders(terminals.stream().map(CardTerminal::getName).toList());
-            window.showMessage(terminals.isEmpty()
-                    ? "Kein Reader gefunden. Anschliessen und aktualisieren."
-                    : "Reader bereit. HTTPS-Link eingeben und Schreiben aktivieren.", terminals.isEmpty());
+            window.showMessage(
+                    terminals.isEmpty()
+                            ? "No reader found. Connect a reader and refresh."
+                            : "Reader ready. Enter an HTTPS link and start a batch.",
+                    terminals.isEmpty());
         }
         catch (CardException | RuntimeException exception)
         {
             terminals = List.of();
             window.setReaders(List.of());
-            window.showMessage("Reader konnten nicht geladen werden: " + exception.getMessage(), true);
+            window.showMessage("Could not load readers: " + exception.getMessage(), true);
         }
     }
 
@@ -175,15 +249,19 @@ public final class ConsoleApplication
             monitors.forEach(ReaderMonitor::close);
             final long currentGeneration = ++generation;
             previousSuccessfulCards = 0;
-            listener = new ReaderListener(update -> events.add(() ->
-            {
-                if (currentGeneration == generation)
-                {
-                    onStatus(update);
-                }
-            }));
-            final ReaderMonitor monitor = new ReaderMonitor(
-                    terminals.get(window.selectedReader()), listener);
+            listener =
+                    new ReaderListener(
+                            update ->
+                                    events.add(
+                                            () ->
+                                            {
+                                                if (currentGeneration == generation)
+                                                {
+                                                    onStatus(update);
+                                                }
+                                            }));
+            final ReaderMonitor monitor =
+                    new ReaderMonitor(terminals.get(window.selectedReader()), listener);
             monitors.add(monitor);
             window.setActive(true);
             listener.activate(message);
@@ -191,7 +269,7 @@ public final class ConsoleApplication
         }
         catch (RuntimeException exception)
         {
-            window.showMessage("Auftrag konnte nicht aktiviert werden: " + exception.getMessage(), true);
+            window.showMessage("Could not start batch: " + exception.getMessage(), true);
         }
     }
 

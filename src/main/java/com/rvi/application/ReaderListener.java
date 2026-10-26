@@ -3,13 +3,15 @@ package com.rvi.application;
 import com.rvi.domain.NDefMessage;
 import com.rvi.service.IReaderService;
 import com.rvi.service.ReaderService;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.Objects;
 
 import javax.smartcardio.Card;
 import javax.smartcardio.CardException;
 import javax.smartcardio.CardTerminal;
-import java.util.Objects;
 
 public final class ReaderListener implements IReaderListener
 {
@@ -38,14 +40,15 @@ public final class ReaderListener implements IReaderListener
             throw new IllegalStateException("A card is still being written");
         }
         this.message = Objects.requireNonNull(message);
-        publish(ReaderStatus.State.ACTIVE, "Warte auf Karte. Serienmodus aktiv.");
+        publish(ReaderStatus.State.ACTIVE, "Waiting for a card. Batch mode active.");
     }
 
     public synchronized void deactivate()
     {
         message = null;
-        publish(writing ? ReaderStatus.State.STOPPING : ReaderStatus.State.STOPPED,
-                writing ? "Stoppe nach dem laufenden Schreibvorgang ..." : "Serienmodus gestoppt.");
+        publish(
+                writing ? ReaderStatus.State.STOPPING : ReaderStatus.State.STOPPED,
+                writing ? "Stopping after the current write ..." : "Batch stopped.");
     }
 
     public synchronized boolean isWriting()
@@ -65,7 +68,7 @@ public final class ReaderListener implements IReaderListener
             }
             currentMessage = message;
             writing = true;
-            publish(ReaderStatus.State.WRITING, "Karte erkannt. Schreibe und verifiziere ...");
+            publish(ReaderStatus.State.WRITING, "Card detected. Writing and verifying ...");
         }
 
         Exception failure = null;
@@ -75,8 +78,8 @@ public final class ReaderListener implements IReaderListener
             final Card card = terminal.connect("*");
             try
             {
-                final IReaderService service = new ReaderService(
-                        new ReaderRepository(card.getBasicChannel()));
+                final IReaderService service =
+                        new ReaderService(new ReaderRepository(card.getBasicChannel()));
                 service.write(currentMessage);
                 verified = true;
             }
@@ -100,16 +103,17 @@ public final class ReaderListener implements IReaderListener
             }
             if (failure != null)
             {
-                publish(ReaderStatus.State.ERROR, "Kartenfehler: " + failure.getMessage()
-                        + ". Karte entfernen und erneut auflegen.");
+                publish(
+                        ReaderStatus.State.ERROR,
+                        "Card error: " + failure.getMessage() + ". Remove the card and try again.");
             }
             else
             {
-                publish(ReaderStatus.State.SUCCESS, "Karte beschrieben und verifiziert. Karte entfernen.");
+                publish(ReaderStatus.State.SUCCESS, "Card written and verified. Remove the card.");
             }
             if (message == null)
             {
-                publish(ReaderStatus.State.STOPPED, "Serienmodus gestoppt.");
+                publish(ReaderStatus.State.STOPPED, "Batch stopped.");
             }
         }
     }
@@ -119,7 +123,7 @@ public final class ReaderListener implements IReaderListener
     {
         if (message != null)
         {
-            publish(ReaderStatus.State.ACTIVE, "Karte entfernt. Warte auf die nächste Karte.");
+            publish(ReaderStatus.State.ACTIVE, "Card removed. Waiting for the next card.");
         }
     }
 
@@ -128,8 +132,10 @@ public final class ReaderListener implements IReaderListener
     {
         message = null;
         LOGGER.error("Reader monitoring failed", exception);
-        publish(ReaderStatus.State.ERROR, "Readerfehler: " + exception.getMessage());
-        publish(ReaderStatus.State.STOPPED, "Überwachung beendet. Reader prüfen und erneut aktivieren.");
+        publish(ReaderStatus.State.ERROR, "Reader error: " + exception.getMessage());
+        publish(
+                ReaderStatus.State.STOPPED,
+                "Monitoring stopped. Check the reader and restart the batch.");
     }
 
     private void publish(final ReaderStatus.State state, final String text)
