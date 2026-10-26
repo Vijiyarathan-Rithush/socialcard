@@ -57,7 +57,7 @@ public class ReaderListener implements IReaderListener
     }
 
     @Override
-    public void onError(Exception exception)
+    public void onError(final Exception exception)
     {
         LOGGER.error("Reader operation failed", exception);
     }
