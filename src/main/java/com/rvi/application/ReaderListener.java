@@ -14,7 +14,7 @@ import java.io.Reader;
 import java.util.Objects;
 
 
-public class ReaderListener implements IReaderListener
+public final class ReaderListener implements IReaderListener
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(ReaderListener.class);
     private final NDefMessage message;
