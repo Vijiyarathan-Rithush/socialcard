@@ -12,6 +12,7 @@ public final class ReaderMonitor implements AutoCloseable
     private final CardTerminal terminal;
     private final IReaderListener listener;
 
+    private boolean closed;
     private final AtomicBoolean started = new AtomicBoolean();
     private final AtomicBoolean running = new AtomicBoolean();
     private static final int TIMEOUT = 500;
@@ -23,8 +24,12 @@ public final class ReaderMonitor implements AutoCloseable
         this.listener = Objects.requireNonNull(listener);
     }
 
-    public void start()
+    public synchronized void start()
     {
+        if (closed)
+        {
+            throw new IllegalStateException("Monitor is closed");
+        }
         if (!started.compareAndSet(false, true))
         {
             throw new IllegalStateException("Monitor already started");
@@ -66,7 +71,7 @@ public final class ReaderMonitor implements AutoCloseable
         }
         catch (CardException | RuntimeException ex)
         {
-            if (!running.get())
+            if (running.get())
             {
                 listener.onError(ex);
             }
@@ -74,12 +79,22 @@ public final class ReaderMonitor implements AutoCloseable
         finally
         {
             running.set(false);
+            executor.shutdown();
+        }
+    }
+
+    public void awaitStopped() throws InterruptedException
+    {
+        while (!executor.awaitTermination(1, java.util.concurrent.TimeUnit.SECONDS))
+        {
+            // Finish an in-flight card operation before releasing the application.
         }
     }
 
     @Override
-    public void close() throws Exception
+    public synchronized void close()
     {
+        closed = true;
         running.set(false);
         executor.shutdown();
     }
