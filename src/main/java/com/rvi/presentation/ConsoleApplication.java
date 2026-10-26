@@ -22,6 +22,7 @@ import javax.smartcardio.CardTerminal;
 import javax.smartcardio.TerminalFactory;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 public final class ConsoleApplication
 {
@@ -39,6 +40,8 @@ public final class ConsoleApplication
     {
         final DefaultTerminalFactory factory = new DefaultTerminalFactory()
                 .setInitialTerminalSize(new TerminalSize(90, 34))
+                .setPreferTerminalEmulator(System.getProperty("os.name", "")
+                        .toLowerCase(Locale.ROOT).startsWith("windows"))
                 .setTerminalEmulatorTitle("SocialCard");
         try (TerminalScreen screen = factory.createScreen())
         {
