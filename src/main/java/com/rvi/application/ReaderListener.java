@@ -25,7 +25,7 @@ public class ReaderListener implements IReaderListener
     }
 
     @Override
-    public void onCardInserted(CardTerminal terminal)
+    public void onCardInserted(final CardTerminal terminal)
     {
         try
         {
@@ -51,14 +51,14 @@ public class ReaderListener implements IReaderListener
     }
 
     @Override
-    public void onCardRemoved(CardTerminal terminal)
+    public void onCardRemoved(final CardTerminal terminal)
     {
-
+        LOGGER.info("Card removed");
     }
 
     @Override
     public void onError(Exception exception)
     {
-
+        LOGGER.error("Reader operation failed", exception);
     }
 }
