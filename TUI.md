@@ -1,39 +1,56 @@
 # SocialCard Terminal UI
 
-Requires JDK 25, Maven, a PC/SC reader and a supported NTAG215 card.
+A borderless interface running directly inside your terminal. Uses JLine 4
+with its bundled JNI provider for native Windows, Linux and macOS terminal
+access. No Swing window and no Cygwin or stty.exe installation is required.
+
+Requires JDK 25, Maven, a PC/SC reader and a supported NTAG215 card. On
+Windows, use PowerShell inside Windows Terminal for the intended rendering.
+An IDE output panel is not an interactive terminal and is not supported.
 
 ```sh
 mvn compile exec:java
 ```
 
-Select a reader, enter a valid HTTPS URL and choose **Schreiben aktivieren**.
-Place cards on the reader one at a time. Each card is written and verified;
-remove it before presenting the next one. The same link is used throughout
-this series. **Stoppen** disables the next write and allows a current write
-to finish. Stop before changing the URL or reader.
+## Controls
 
-Use Tab to move between controls, Enter to select and Esc to exit. Exiting
-waits for an active write to finish. Connect a missing reader and choose
-**Reader aktualisieren**. After a reader failure, reconnect it and activate
-the job again. Logs are written to `logs/socialcard.log` and retained for seven days.
+- Tab: switch between reader, URL and the primary action.
+- Left/right on the reader: select a connected reader.
+- Left/right in the URL: move the editing cursor.
+- Backspace: delete the character before the cursor.
+- Ctrl+U: clear the URL.
+- Enter in the URL or action: start a series, or stop the active series.
+- Enter on the reader: focus the URL.
+- R outside the URL field: refresh connected readers while stopped.
+- Esc or Ctrl+C: finish an active write and exit.
 
-Lanterna uses a terminal emulator window on Windows and in graphical IDE
-sessions. On supported text terminals it renders in the terminal itself.
-A terminal area of at least 80 columns by 24 rows is recommended.
+Paste a valid HTTPS URL, then press Enter. Place cards on the reader one at
+a time. Each card is written and verified; remove it before presenting the
+next one. The link remains locked during a series. Stopping disables further
+writes and allows the current write to complete.
 
-The existing `encodeURIs` API remains available; the first TUI accepts a
-single HTTPS URL per series. Card capacity assumptions remain NTAG215.
+The view includes the selected reader, destination, live state, verified-card
+counter and the three most recent events. It keeps 100 events in memory.
+The layout adapts to terminal size and shows a resize hint below 60 columns
+by 22 rows. The background follows your terminal theme; use a dark theme for
+the intended muted text and violet accent. Runtime logs go to
+`logs/socialcard.log` and are retained for seven days.
+
+Connect a missing reader and refresh it. After a reader failure, reconnect
+it and activate the job again. The existing `encodeURIs` API remains
+available; the TUI accepts a single HTTPS URL per series. Card capacity
+assumptions remain NTAG215.
 
 ## Structure
 
-- `ConsoleApplication`: terminal lifecycle, reader selection and monitoring.
-- `MainWindow`: form, controls, status, counter and the last 100 events.
+- `ConsoleApplication`: native terminal lifecycle, key bindings, status queue
+  and reader monitoring.
+- `MainWindow`: input model and styled borderless rendering.
 - `ReaderListener`: active message, serial writes and status events.
-- `IReaderStatusListener` and `ReaderStatus`: hardware-to-presentation notifications.
+- `IReaderStatusListener` and `ReaderStatus`: worker-to-presentation notifications.
 - `ReaderMonitor`: background card detection and graceful shutdown.
 
-The monitor performs card operations sequentially. UI updates are dispatched
-to Lanterna's GUI thread. Stopping clears the active message atomically and
-allows an already reserved write to complete. Activation locks reader and URL
-controls until the series has stopped. Existing encoder, repository and service
-APIs remain unchanged.
+The monitor performs card operations sequentially. The terminal event loop
+consumes worker notifications; the worker never draws or edits the view.
+Stopping clears the active message atomically. Exiting restores terminal
+attributes, cursor visibility and the original screen, including on errors.

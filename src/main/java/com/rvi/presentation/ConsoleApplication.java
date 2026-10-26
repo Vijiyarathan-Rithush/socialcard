@@ -1,93 +1,144 @@
 package com.rvi.presentation;
 
-import com.googlecode.lanterna.TerminalSize;
-import com.googlecode.lanterna.TextColor;
-import com.googlecode.lanterna.graphics.PropertyTheme;
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.Properties;
-import com.googlecode.lanterna.gui2.DefaultWindowManager;
-import com.googlecode.lanterna.gui2.EmptySpace;
-import com.googlecode.lanterna.gui2.MultiWindowTextGUI;
-import com.googlecode.lanterna.screen.TerminalScreen;
-import com.googlecode.lanterna.terminal.DefaultTerminalFactory;
 import com.rvi.application.NDefEncoder;
 import com.rvi.application.ReaderListener;
 import com.rvi.application.ReaderMonitor;
 import com.rvi.application.ReaderStatus;
 import com.rvi.domain.NDefMessage;
+import org.jline.keymap.KeyMap;
+import org.jline.keymap.BindingReader;
+import org.jline.terminal.Attributes;
+import org.jline.terminal.Terminal;
+import org.jline.terminal.TerminalBuilder;
+import org.jline.utils.Display;
+import org.jline.utils.InfoCmp.Capability;
 
 import javax.smartcardio.CardException;
 import javax.smartcardio.CardTerminal;
 import javax.smartcardio.TerminalFactory;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 public final class ConsoleApplication
 {
     private final List<ReaderMonitor> monitors = new ArrayList<>();
+    private final ConcurrentLinkedQueue<Runnable> events = new ConcurrentLinkedQueue<>();
+    private final MainWindow window = new MainWindow();
     private List<CardTerminal> terminals = List.of();
-    private MultiWindowTextGUI gui;
-    private MainWindow window;
     private ReaderListener listener;
     private boolean closing;
+    private boolean finished;
+    private boolean pasting;
     private long generation;
     private int totalSuccessfulCards;
     private int previousSuccessfulCards;
 
     public void run() throws Exception
     {
-        final DefaultTerminalFactory factory = new DefaultTerminalFactory()
-                .setInitialTerminalSize(new TerminalSize(90, 34))
-                .setPreferTerminalEmulator(System.getProperty("os.name", "")
-                        .toLowerCase(Locale.ROOT).startsWith("windows"))
-                .setTerminalEmulatorTitle("SocialCard");
-        try (TerminalScreen screen = factory.createScreen())
+        try (Terminal terminal = TerminalBuilder.builder().name("SocialCard")
+                .system(true).provider("jni").dumb(false).build())
         {
-            screen.startScreen();
-            gui = new MultiWindowTextGUI(screen, new DefaultWindowManager(),
-                    new EmptySpace(TextColor.ANSI.BLACK));
-            gui.setTheme(createTheme());
-            window = new MainWindow(this::activate, this::stop, this::refresh, this::exit);
-            refresh();
+            final Attributes original = terminal.enterRawMode();
+            final Terminal.SignalHandler previous = terminal.handle(Terminal.Signal.INT,
+                    signal -> events.add(this::exit));
             try
             {
-                gui.addWindowAndWait(window);
+                terminal.puts(Capability.enter_ca_mode);
+                terminal.puts(Capability.cursor_invisible);
+                terminal.writer().print("\033[?2004h");
+                terminal.flush();
+                final Display display = new Display(terminal, true);
+                final BindingReader reader = new BindingReader(terminal.reader());
+                final KeyMap<String> keys = bindings();
+                refresh();
+                while (!finished)
+                {
+                    Runnable event;
+                    while ((event = events.poll()) != null) { event.run(); }
+                    if (finished) { break; }
+                    final int width = Math.max(1, terminal.getWidth());
+                    final int height = Math.max(1, terminal.getHeight());
+                    display.resize(height, width);
+                    display.update(window.render(width, height, System.nanoTime() / 150_000_000L), 0);
+                    if (reader.peekCharacter(80) == -1) { exit(); continue; }
+                    if (reader.peekCharacter(1) < 0) { continue; }
+                    final String key = reader.readBinding(keys);
+                    if (key != null) { handle(key, reader.getLastBinding()); }
+                }
             }
             finally
             {
-                if (listener != null)
-                {
-                    listener.deactivate();
-                }
+                if (listener != null) { listener.deactivate(); }
                 monitors.forEach(ReaderMonitor::close);
-                for (final ReaderMonitor monitor : monitors)
+                try
                 {
-                    monitor.awaitStopped();
+                    for (final ReaderMonitor monitor : monitors) { monitor.awaitStopped(); }
+                }
+                finally
+                {
+                    terminal.writer().print("\033[?2004l");
+                    terminal.puts(Capability.cursor_normal);
+                    terminal.puts(Capability.exit_ca_mode);
+                    terminal.setAttributes(original);
+                    terminal.handle(Terminal.Signal.INT, previous);
+                    terminal.flush();
                 }
             }
         }
     }
 
-    static PropertyTheme createTheme() throws IOException
+    private static KeyMap<String> bindings()
     {
-        final Properties properties = new Properties();
-        try (InputStream input = ConsoleApplication.class.getResourceAsStream("/businessmachine-theme.properties"))
+        final KeyMap<String> keys = new KeyMap<>();
+        keys.setUnicode("TEXT");
+        keys.setNomatch("TEXT");
+        keys.setAmbiguousTimeout(100);
+        keys.bind("TAB", "\t", "\033[Z");
+        keys.bind("ENTER", "\r", "\n");
+        keys.bind("EXIT", "\033", "\003");
+        keys.bind("BACKSPACE", "\177", "\b");
+        keys.bind("CLEAR", "\025");
+        keys.bind("LEFT", "\033[D", "\033OD");
+        keys.bind("RIGHT", "\033[C", "\033OC");
+        keys.bind("PREVIOUS", "\033[A", "\033OA");
+        keys.bind("NEXT", "\033[B", "\033OB");
+        keys.bind("PASTE_START", "\033[200~");
+        keys.bind("PASTE_END", "\033[201~");
+        return keys;
+    }
+
+    private void handle(final String key, final String text)
+    {
+        if (key.equals("PASTE_START")) { pasting = true; return; }
+        if (key.equals("PASTE_END")) { pasting = false; return; }
+        if (closing) { return; }
+        if (pasting)
         {
-            if (input == null)
-            {
-                throw new IOException("Terminal theme is missing");
-            }
-            properties.load(input);
+            if (key.equals("TEXT")) { window.insert(text); }
+            return;
         }
-        properties.replaceAll((key, value) -> "green".equals(value) ? "white" : value);
-        properties.setProperty("foreground[ACTIVE]", "black");
-        properties.setProperty("background[ACTIVE]", "cyan");
-        properties.setProperty("foreground[SELECTED]", "black");
-        properties.setProperty("background[SELECTED]", "cyan");
-        properties.setProperty("foreground[INSENSITIVE]", "#777777");
-        return new PropertyTheme(properties);
+        switch (key)
+        {
+            case "EXIT" -> exit();
+            case "TAB" -> window.nextFocus();
+            case "BACKSPACE" -> window.backspace();
+            case "CLEAR" -> window.clearUrl();
+            case "LEFT", "PREVIOUS" -> window.move(-1);
+            case "RIGHT", "NEXT" -> window.move(1);
+            case "ENTER" ->
+            {
+                if (window.isActive()) { stop(); }
+                else if (window.focus() == 0) { window.nextFocus(); }
+                else { activate(); }
+            }
+            case "TEXT" ->
+            {
+                if (window.focus() != 1 && text.equalsIgnoreCase("r") && !window.isActive()) { refresh(); }
+                else { window.insert(text); }
+            }
+            default -> { }
+        }
     }
 
     private void refresh()
@@ -110,7 +161,7 @@ public final class ConsoleApplication
 
     private void activate()
     {
-        if (closing || window.selectedReader() < 0)
+        if (closing || window.isActive() || window.selectedReader() < 0)
         {
             return;
         }
@@ -124,7 +175,7 @@ public final class ConsoleApplication
             monitors.forEach(ReaderMonitor::close);
             final long currentGeneration = ++generation;
             previousSuccessfulCards = 0;
-            listener = new ReaderListener(update -> gui.getGUIThread().invokeLater(() ->
+            listener = new ReaderListener(update -> events.add(() ->
             {
                 if (currentGeneration == generation)
                 {
@@ -167,7 +218,7 @@ public final class ConsoleApplication
         }
         else
         {
-            window.close();
+            finished = true;
         }
     }
 
@@ -181,7 +232,7 @@ public final class ConsoleApplication
             window.setActive(false);
             if (closing)
             {
-                window.close();
+                finished = true;
             }
         }
     }
