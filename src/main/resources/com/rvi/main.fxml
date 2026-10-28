@@ -1,25 +1,50 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
-<?import javafx.geometry.Insets?>
-<VBox xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.rvi.presentation.MainController" spacing="16" prefWidth="640" prefHeight="560">
-    <padding><Insets top="28" right="32" bottom="28" left="32"/></padding>
-    <Label text="SocialCard" style="-fx-font-size: 28; -fx-font-weight: bold;"/>
-    <Label text="Write and verify NFC cards"/>
-    <Label text="Reader"/>
-    <HBox spacing="12">
-        <ComboBox fx:id="readers" maxWidth="Infinity" HBox.hgrow="ALWAYS"/>
-        <Button fx:id="refresh" text="Refresh" onAction="#refreshReaders"/>
+<VBox fx:id="root" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.rvi.presentation.MainController"
+      stylesheets="@socialcard.css" styleClass="socialcard" prefWidth="560" prefHeight="440">
+    <StackPane VBox.vgrow="ALWAYS" styleClass="content">
+        <VBox fx:id="setup" spacing="0" alignment="TOP_LEFT">
+            <Label text="Write NFC cards" styleClass="heading"/>
+            <Label text="Reader" labelFor="$readers" styleClass="field-label"/>
+            <HBox spacing="8" styleClass="reader-field">
+                <ComboBox fx:id="readers" maxWidth="Infinity" HBox.hgrow="ALWAYS" promptText="Select a reader"/>
+                <Button fx:id="refresh" text="↻" onAction="#refreshReaders" styleClass="refresh" accessibleText="Refresh readers"/>
+            </HBox>
+            <Label text="URL" labelFor="$destination" styleClass="field-label"/>
+            <TextField fx:id="destination" promptText="https://example.com" onAction="#startBatch"/>
+            <HBox spacing="16" alignment="CENTER_LEFT" styleClass="actions">
+                <Button fx:id="start" text="Start batch" onAction="#startBatch" styleClass="primary"/>
+                <Label text="Replaces existing card content." styleClass="hint" wrapText="true"/>
+            </HBox>
+            <Label fx:id="feedback" visible="false" wrapText="true" styleClass="feedback"/>
+        </VBox>
+        <VBox fx:id="session" visible="false">
+            <HBox spacing="16" styleClass="summary" alignment="CENTER_LEFT">
+                <Label fx:id="selectedReader" maxWidth="190" styleClass="secondary"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Label fx:id="selectedUrl" maxWidth="280" styleClass="secondary"/>
+            </HBox>
+            <VBox alignment="CENTER" VBox.vgrow="ALWAYS" spacing="8" styleClass="focus">
+                <Label fx:id="symbol" styleClass="status-symbol" minHeight="38"/>
+                <Label fx:id="status" text="Place a card on the reader" styleClass="status-heading" wrapText="true" textAlignment="CENTER"/>
+                <Label fx:id="instruction" wrapText="true" textAlignment="CENTER" styleClass="secondary"/>
+            </VBox>
+            <HBox alignment="CENTER_LEFT" spacing="6">
+                <Label fx:id="count" text="0" styleClass="count"/>
+                <Label text="cards verified" styleClass="secondary"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Button fx:id="stop" text="Stop batch" onAction="#stopBatch"/>
+            </HBox>
+        </VBox>
+    </StackPane>
+    <HBox spacing="8" alignment="CENTER_LEFT" styleClass="footer">
+        <Region styleClass="connection-dot" minWidth="6" prefWidth="6" maxWidth="6" minHeight="6" prefHeight="6" maxHeight="6"/>
+        <Label fx:id="connection" text="Looking for readers ..." styleClass="secondary"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Button fx:id="activityToggle" text="Activity ▾" onAction="#toggleActivity" styleClass="disclosure" accessibleText="Expand activity"/>
     </HBox>
-    <Label text="Destination"/>
-    <TextField fx:id="destination" promptText="https://example.com" onAction="#startBatch"/>
-    <HBox spacing="12">
-        <Button fx:id="start" text="Start batch" onAction="#startBatch" defaultButton="true"/>
-        <Button fx:id="stop" text="Stop batch" onAction="#stopBatch" disable="true"/>
-        <Label fx:id="count" text="0"/>
-        <Label text="cards verified this batch"/>
-    </HBox>
-    <Label fx:id="status" text="Loading readers ..." wrapText="true"/>
-    <Label text="Activity"/>
-    <ListView fx:id="activity" VBox.vgrow="ALWAYS"/>
+    <VBox fx:id="activityPane" visible="false" styleClass="activity-pane">
+        <ListView fx:id="activity" prefHeight="105" minHeight="60" accessibleText="Recent activity"/>
+    </VBox>
 </VBox>

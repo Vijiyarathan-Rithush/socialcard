@@ -27,7 +27,8 @@ Developed as a learning project during my software development apprenticeship.
 - Reader selection and refresh
 - Continuous batch writing with automatic card detection
 - Write verification and a counter for each batch
-- Live status updates and recent activity
+- Contextual waiting, writing, verification and error views
+- Expandable activity log with timestamps
 - Graceful shutdown after the current write finishes
 - Background hardware operations that keep the interface responsive
 - Service API for encoding, reading and writing NDEF messages
@@ -68,7 +69,7 @@ The reader and destination stay locked while a batch is active. The verified-car
 
 **Writing replaces the card’s existing NDEF content.**
 
-The activity list retains the latest 100 events. Application logs are saved to `logs/socialcard.log`.
+Open **Activity** to view the latest 100 timestamped events. The window expands to show the log. Application logs are saved to `logs/socialcard.log`.
 
 ## Architecture
 

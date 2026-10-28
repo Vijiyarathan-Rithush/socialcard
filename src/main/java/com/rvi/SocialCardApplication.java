@@ -6,6 +6,7 @@ import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
+import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
 public final class SocialCardApplication extends Application
@@ -16,10 +17,18 @@ public final class SocialCardApplication extends Application
         final var controller = new MainController(new BatchService());
         final var loader = new FXMLLoader(SocialCardApplication.class.getResource("/com/rvi/main.fxml"));
         loader.setControllerFactory(type -> controller);
-        stage.setScene(new Scene(loader.load()));
+        final VBox root = loader.load();
+        stage.setScene(new Scene(root));
+        final VBox activity = (VBox) root.lookup("#activityPane");
+        activity.visibleProperty().addListener((observable, previous, expanded) -> {
+            if (!stage.isMaximized())
+            {
+                stage.setHeight(stage.getHeight() + (expanded ? 1 : -1) * activity.prefHeight(-1));
+            }
+        });
         stage.setTitle("SocialCard");
-        stage.setMinWidth(540);
-        stage.setMinHeight(500);
+        stage.setMinWidth(500);
+        stage.setMinHeight(480);
         stage.setOnCloseRequest(event -> {
             event.consume();
             stage.getScene().getRoot().setDisable(true);

@@ -50,7 +50,8 @@ public final class BatchService implements IBatchService
                         active = false;
                     }
                 }
-                onStatus.accept(new BatchStatus(status.message(), status.successfulCards(), stopped));
+                onStatus.accept(new BatchStatus(BatchStatus.State.valueOf(status.state().name()),
+                        status.message(), status.successfulCards()));
             });
             monitors.forEach(ReaderMonitor::close);
             final var monitor = new ReaderMonitor(terminal, listener);
