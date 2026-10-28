@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+<VBox xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.rvi.presentation.MainController" spacing="16" prefWidth="640" prefHeight="560">
+    <padding><Insets top="28" right="32" bottom="28" left="32"/></padding>
+    <Label text="SocialCard" style="-fx-font-size: 28; -fx-font-weight: bold;"/>
+    <Label text="Write and verify NFC cards"/>
+    <Label text="Reader"/>
+    <HBox spacing="12">
+        <ComboBox fx:id="readers" maxWidth="Infinity" HBox.hgrow="ALWAYS"/>
+        <Button fx:id="refresh" text="Refresh" onAction="#refreshReaders"/>
+    </HBox>
+    <Label text="Destination"/>
+    <TextField fx:id="destination" promptText="https://example.com" onAction="#startBatch"/>
+    <HBox spacing="12">
+        <Button fx:id="start" text="Start batch" onAction="#startBatch" defaultButton="true"/>
+        <Button fx:id="stop" text="Stop batch" onAction="#stopBatch" disable="true"/>
+        <Label fx:id="count" text="0"/>
+        <Label text="cards verified this batch"/>
+    </HBox>
+    <Label fx:id="status" text="Loading readers ..." wrapText="true"/>
+    <Label text="Activity"/>
+    <ListView fx:id="activity" VBox.vgrow="ALWAYS"/>
+</VBox>
