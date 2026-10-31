@@ -20,8 +20,8 @@ public final class SocialCardApplication extends Application
         final VBox root = loader.load();
         stage.setScene(new Scene(root));
         stage.setTitle("SocialCard");
-        stage.setMinWidth(900);
-        stage.setMinHeight(620);
+        stage.setMinWidth(820);
+        stage.setMinHeight(560);
         stage.setOnCloseRequest(event -> {
             event.consume();
             stage.getScene().getRoot().setDisable(true);

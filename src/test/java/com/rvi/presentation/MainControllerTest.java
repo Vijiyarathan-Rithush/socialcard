@@ -109,7 +109,7 @@ class MainControllerTest
     {
         load(false);
         onFx(() -> {
-            ((javafx.scene.control.CheckBox) view.lookup("#profileMode")).setSelected(true);
+            ((javafx.scene.control.ToggleButton) view.lookup("#profileMode")).setSelected(true);
             ((TextField) view.lookup("#profileName")).setText("Rithush");
             final var rows = (javafx.scene.layout.VBox) view.lookup("#linkRows");
             final var row = (javafx.scene.layout.HBox) rows.getChildren().getFirst();
@@ -132,6 +132,33 @@ class MainControllerTest
         await(() -> service.callback != null);
         assertTrue(service.writtenUrl.startsWith("https://socialcard.rithush.dev/#v=1&n=Rithush&b=Developer"));
         assertTrue(service.writtenUrl.contains("&l=GitHub&u=https%3A%2F%2Fgithub.com%2Frvi"));
+    }
+
+    @Test
+    void compactEditorFitsThreeLinksAndKeepsOneModeSelected() throws Exception
+    {
+        load(false);
+        onFx(() -> {
+            final var profile = (javafx.scene.control.ToggleButton) view.lookup("#profileMode");
+            final var link = (javafx.scene.control.ToggleButton) view.lookup("#linkMode");
+            profile.setSelected(true);
+            button("addLinkButton").fire();
+            button("addLinkButton").fire();
+            view.applyCss();
+            view.layout();
+            final var rows = (javafx.scene.layout.VBox) view.lookup("#linkRows");
+            assertEquals(3, rows.getChildren().size());
+            final var scroll = (javafx.scene.control.ScrollPane) view.lookup("#setupScroll");
+            assertTrue(scroll.getContent().getLayoutBounds().getHeight()
+                    <= scroll.getViewportBounds().getHeight() + 1, "Three rows should fit without scrolling");
+            profile.fire();
+            assertTrue(profile.isSelected());
+            link.fire();
+            assertTrue(link.isSelected());
+            assertFalse(profile.isSelected());
+            assertFalse(view.lookup("#previewColumn").isVisible());
+            assertTrue(view.lookup("#directPanel").isVisible());
+        });
     }
 
     @Test
@@ -185,8 +212,8 @@ class MainControllerTest
             final var loader = new FXMLLoader(getClass().getResource("/com/rvi/main.fxml"));
             loader.setControllerFactory(type -> controller);
             view = loader.load();
-            new Scene(view, 1040, 780);
-            ((javafx.scene.control.CheckBox) view.lookup("#profileMode")).setSelected(false);
+            new Scene(view, 860, 560);
+            ((javafx.scene.control.ToggleButton) view.lookup("#linkMode")).setSelected(true);
         });
         awaitFx(() -> !button("refresh").isDisabled());
     }
