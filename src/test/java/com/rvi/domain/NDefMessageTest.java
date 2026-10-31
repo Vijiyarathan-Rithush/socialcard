@@ -123,6 +123,25 @@ public final class NDefMessageTest
     }
 
     @Test
+    void validatesExtendedMessagesAndEveryTruncatedPrefix()
+    {
+        byte[] valid = new com.rvi.application.NDefEncoder().encodeURI("https://a.ch/" + "x".repeat(478)).data();
+        assertArrayEquals(valid, new NDefMessage(valid).data());
+        for (int length = 0; length < valid.length; length++)
+        {
+            byte[] truncated = Arrays.copyOf(valid, length);
+            assertThrows(NDefMessageException.class, () -> new NDefMessage(truncated));
+        }
+        for (int offset : new int[] {2, 3, 6, 7, 8, 9})
+        {
+            byte[] corrupted = valid.clone();
+            corrupted[offset] = (byte) 255;
+            assertThrows(NDefMessageException.class, () -> new NDefMessage(corrupted));
+        }
+        assertThrows(NDefMessageException.class, () -> new NDefMessage(Arrays.copyOf(valid, 497)));
+    }
+
+    @Test
     void protectsAgainstInputMutation()
     {
         byte[] input = singleMessage();

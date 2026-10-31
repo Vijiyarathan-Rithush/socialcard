@@ -59,6 +59,8 @@ public final class MainController
     @FXML private TextArea profileBio;
     @FXML private VBox linkRows;
     @FXML private Label capacity;
+    @FXML private Label destinationLabel;
+    @FXML private Label viewerLabel;
     private final ProfileService profiles = new ProfileService();
     private final List<ProfileRow> profileRows = new ArrayList<>();
     private String preparedUrl;
@@ -81,6 +83,13 @@ public final class MainController
         session.managedProperty().bind(session.visibleProperty());
         activityPane.managedProperty().bind(activityPane.visibleProperty());
         feedback.managedProperty().bind(feedback.visibleProperty());
+        destination.visibleProperty().bind(profileMode.selectedProperty().not());
+        destination.managedProperty().bind(destination.visibleProperty());
+        destinationLabel.visibleProperty().bind(destination.visibleProperty());
+        destinationLabel.managedProperty().bind(destination.visibleProperty());
+        viewerLabel.setText("Profile viewer: " + ProfileService.VIEWER_URL);
+        viewerLabel.visibleProperty().bind(profileMode.selectedProperty());
+        viewerLabel.managedProperty().bind(viewerLabel.visibleProperty());
         profileFields.managedProperty().bind(profileFields.visibleProperty());
         profileFields.visibleProperty().bind(profileMode.selectedProperty());
         profileMode.selectedProperty().addListener((observable, old, value) -> updateProfile());
@@ -90,8 +99,8 @@ public final class MainController
         addLink();
         updateProfile();
         start.disableProperty().bind(Bindings.createBooleanBinding(
-                () -> readers.getValue() == null || destination.getText().isBlank()
-                        || refresh.isDisabled() || (profileMode.isSelected() && preparedUrl == null),
+                () -> readers.getValue() == null || refresh.isDisabled()
+                        || (profileMode.isSelected() ? preparedUrl == null : destination.getText().isBlank()),
                 readers.valueProperty(), destination.textProperty(), refresh.disableProperty(),
                 profileMode.selectedProperty(), capacity.textProperty()));
         refreshReaders();
@@ -137,11 +146,11 @@ public final class MainController
             final var links = profileRows.stream()
                     .map(row -> new ProfileService.Link(row.label().getText(), row.url().getText()))
                     .toList();
-            final String url = profiles.createUrl(destination.getText(), profileName.getText(),
+            final String url = profiles.createUrl(profileName.getText(),
                     profileBio.getText(), links);
             final int bytes = profiles.encodedBytes(url);
             preparedUrl = url;
-            capacity.setText(bytes + " / 257 supported NDEF bytes");
+            capacity.setText(bytes + " / " + ProfileService.CAPACITY_BYTES + " NTAG215 NDEF bytes");
         }
         catch (IllegalArgumentException exception)
         {

@@ -13,8 +13,9 @@
                 <Button fx:id="refresh" text="↻" onAction="#refreshReaders" styleClass="refresh" accessibleText="Refresh readers"/>
             </HBox>
             <CheckBox fx:id="profileMode" text="Store a profile on the card" selected="true"/>
-            <Label text="Profile viewer URL / direct destination" labelFor="$destination" styleClass="field-label"/>
-            <TextField fx:id="destination" promptText="https://your-domain.ch/"/>
+            <Label fx:id="viewerLabel" styleClass="secondary"/>
+            <Label fx:id="destinationLabel" text="Direct destination" labelFor="$destination" styleClass="field-label"/>
+            <TextField fx:id="destination" promptText="https://example.com/"/>
             <VBox fx:id="profileFields" spacing="8">
                 <Label text="Name" labelFor="$profileName" styleClass="field-label"/>
                 <TextField fx:id="profileName" promptText="Your name"/>

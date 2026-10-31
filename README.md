@@ -63,8 +63,8 @@ Set `JAVA_HOME` to your JDK 25 installation. Maven downloads the JavaFX dependen
 
 1. Host the static viewer (see below), then connect your NFC reader and click **Refresh**.
 2. Select the reader. Leave **Store a profile on the card** enabled.
-3. Enter the HTTPS address where you hosted the viewer, your name, optional description and links.
-4. Keep the profile within the displayed supported NDEF size. Shorter addresses leave more room for data.
+3. Enter your name, optional description and links. Profile links always use `https://rithush.dev/`.
+4. Keep the profile within the displayed supported NDEF size. The counter includes all NDEF formatting bytes.
 5. Click **Write cards**, place a card on the reader and wait for verification.
 6. Remove it and present another card to write the same profile, or click **Stop writing** to edit.
 7. Tap the card with a compatible phone to open the profile in its browser.
@@ -121,9 +121,9 @@ End-to-end writing and reader compatibility must also be checked with a physical
 | URL scheme | HTTPS |
 | Desktop workflow | One profile URL or direct HTTPS URL per writing session |
 | Service API | Single or multiple URI records; card reading and writing |
-| NDEF payload | Up to 254 bytes of combined record data |
+| NDEF record data | Up to 491 bytes, within a 496-byte Type 2 NDEF area |
 | Card layout | NTAG215 user pages 4–129 |
-| Extended-length TLVs | Unsupported |
+| Extended-length TLVs | Supported; short and normal URI records |
 
 How a receiving device handles multiple URI records depends on its operating system and app.
 
@@ -139,8 +139,9 @@ How a receiving device handles multiple URI records depends on its operating sys
 The `docs/` directory contains a buildless, public-facing viewer. Serve `index.html`,
 `style.css` and `viewer.mjs` together over HTTPS. No API, database, login or build step is required.
 For example, you can configure GitHub Pages to serve `/docs` from the branch containing these files.
-Hosting is not enabled by this code change. Use your actual deployed viewer URL in the desktop app;
-a custom domain is optional. A private page requiring login is unsuitable for general card recipients.
+The desktop writer uses the fixed viewer address `https://rithush.dev/`. The included `docs/CNAME`
+sets this domain when using GitHub Pages. Hosting, DNS and HTTPS still need to be configured with
+your provider; this change does not modify those settings. A private page requiring login is unsuitable for general card recipients.
 
 For local browser development, run `python -m http.server 8080 --directory docs` and open
 `http://localhost:8080/#v=1&n=Rithush&l=GitHub&u=https%3A%2F%2Fgithub.com%2Frvi`.
@@ -158,11 +159,20 @@ The Java writer percent-encodes UTF-8 values; the viewer decodes them with `URLS
 
 The card contains the complete profile URL, not a database identifier. Changing profile content
 requires rewriting the card. Copies of old URLs keep their old content. Initial viewer loading
-needs internet access. The current encoder supports 254 bytes of NDEF record data (257 bytes
-including its TLV and terminator), even though NTAG215 has more physical user memory.
-Percent encoding, the viewer address and field names consume this budget. Up to ten link rows
-are allowed, but the byte limit is usually reached much sooner. Images are not supported.
-Extended-length NDEF support is a separate future change.
+needs internet access. The encoder supports short and extended Type 2 TLV lengths, and short
+and normal NDEF URI records. Existing short messages keep the same encoding.
+
+NTAG215 has **504 bytes of physical user memory**, but its factory Capability Container declares
+**496 bytes** for NFC Forum NDEF (0x3E times 8). The application uses this advertised area without
+modifying the Capability Container, locks or configuration. The counter includes the TLV, records,
+URI prefix and terminator. Extended messages use 5 bytes for the TLV and terminator, leaving up to
+491 bytes of record data. A single long URI record uses another 8 bytes, leaving 483 bytes for the
+HTTPS URI suffix (491 ASCII bytes including `https://`). Reads and writes stop by user page 127;
+physical user pages 128 and 129 remain untouched.
+
+See [NXP NTAG213/215/216 data sheet, sections 8.5.4 and 8.5.5](https://www.nxp.com/docs/en/data-sheet/NTAG213_215_216.pdf).
+Percent encoding, the fixed viewer address and field names consume the same budget as profile content.
+Up to ten link rows are allowed; their actual number depends on encoded byte size. Images are not supported.
 
 Fragments are normally not sent in the HTTP request. The viewer has no analytics, third-party
 scripts or profile uploads, and renders fields as plain text. Nevertheless, anyone who can read

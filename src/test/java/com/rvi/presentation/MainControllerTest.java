@@ -110,7 +110,6 @@ class MainControllerTest
         load(false);
         onFx(() -> {
             ((javafx.scene.control.CheckBox) view.lookup("#profileMode")).setSelected(true);
-            ((TextField) view.lookup("#destination")).setText("https://example.com/");
             ((TextField) view.lookup("#profileName")).setText("Rithush");
             final var rows = (javafx.scene.layout.VBox) view.lookup("#linkRows");
             final var row = (javafx.scene.layout.HBox) rows.getChildren().getFirst();
@@ -119,13 +118,16 @@ class MainControllerTest
             assertFalse(button("start").isDisabled());
             final var bio = (javafx.scene.control.TextArea) view.lookup("#profileBio");
             bio.setText("x".repeat(200));
+            ((TextField) row.getChildren().get(1)).setText("https://a.ch/" + "x".repeat(400));
             assertTrue(button("start").isDisabled());
             bio.setText("Developer");
+            ((TextField) row.getChildren().get(1)).setText("https://github.com/rvi");
+            assertFalse(view.lookup("#destination").isVisible());
             assertFalse(button("start").isDisabled());
             button("start").fire();
         });
         await(() -> service.callback != null);
-        assertTrue(service.writtenUrl.contains("#v=1&n=Rithush&b=Developer"));
+        assertTrue(service.writtenUrl.startsWith("https://rithush.dev/#v=1&n=Rithush&b=Developer"));
         assertTrue(service.writtenUrl.contains("&l=GitHub&u=https%3A%2F%2Fgithub.com%2Frvi"));
     }
 

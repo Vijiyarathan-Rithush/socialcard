@@ -17,7 +17,7 @@ public final class ReaderRepository implements IReaderRepository
     private static final int NDEF_TLV = 0x03;
     private static final int TERMINATOR = 0xFE;
 
-    private static final int TLV_OVERHEAD = 3;
+
     private static final int TLV_TYPE_OFFSET = 0;
     private static final int TLV_LENGTH_OFFSET = 1;
     private static final int EXTENDED_TLV_LENGTH_MARKER = 0xFF;
@@ -48,9 +48,15 @@ public final class ReaderRepository implements IReaderRepository
     public NDefMessage read() throws CardException
     {
         final byte[] firstPage = readPage(FIRST_USER_PAGE);
-        final int ndefLength = Byte.toUnsignedInt(firstPage[TLV_LENGTH_OFFSET]);
+        final int lengthByte = Byte.toUnsignedInt(firstPage[TLV_LENGTH_OFFSET]);
+        final boolean extended = lengthByte == EXTENDED_TLV_LENGTH_MARKER;
+        final int ndefLength = extended
+                ? (Byte.toUnsignedInt(firstPage[2]) << 8) | Byte.toUnsignedInt(firstPage[3])
+                : lengthByte;
+        final int totalLength = ndefLength + (extended ? 5 : 3);
 
-        if (Byte.toUnsignedInt(firstPage[TLV_TYPE_OFFSET]) != NDEF_TLV || ndefLength == EMPTY_NDEF_LENGTH || ndefLength == EXTENDED_TLV_LENGTH_MARKER)
+        if (Byte.toUnsignedInt(firstPage[TLV_TYPE_OFFSET]) != NDEF_TLV || ndefLength == EMPTY_NDEF_LENGTH
+                || (extended && ndefLength < 255) || totalLength > NDefMessage.MAX_NDEF_BYTES)
         {
             throw new CardException("Unsupported or empty NDEF message");
         }
@@ -58,7 +64,6 @@ public final class ReaderRepository implements IReaderRepository
         final ByteArrayOutputStream output = new ByteArrayOutputStream();
         output.writeBytes(firstPage);
 
-        final int totalLength = ndefLength + TLV_OVERHEAD;
 
         for (int page = FIRST_USER_PAGE + 1; output.size() < totalLength; page++)
         {
@@ -76,9 +81,9 @@ public final class ReaderRepository implements IReaderRepository
         final byte[] data = message.data();
         final int paddedLength = ((data.length + PAGE_SIZE_BYTES - 1) / PAGE_SIZE_BYTES) * PAGE_SIZE_BYTES;
 
-        if (paddedLength > USER_MEMORY_BYTES)
+        if (paddedLength > USER_MEMORY_BYTES || paddedLength > NDefMessage.MAX_NDEF_BYTES)
         {
-            throw new IllegalArgumentException("Message exceeds NTAG215 user memory");
+            throw new IllegalArgumentException("Message exceeds NTAG215 NDEF memory");
         }
 
         final byte[] padded = Arrays.copyOf(data, paddedLength);
