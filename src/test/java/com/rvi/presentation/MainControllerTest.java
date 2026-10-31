@@ -105,6 +105,31 @@ class MainControllerTest
     }
 
     @Test
+    void writesGeneratedProfileAndBlocksOversizedContent() throws Exception
+    {
+        load(false);
+        onFx(() -> {
+            ((javafx.scene.control.CheckBox) view.lookup("#profileMode")).setSelected(true);
+            ((TextField) view.lookup("#destination")).setText("https://example.com/");
+            ((TextField) view.lookup("#profileName")).setText("Rithush");
+            final var rows = (javafx.scene.layout.VBox) view.lookup("#linkRows");
+            final var row = (javafx.scene.layout.HBox) rows.getChildren().getFirst();
+            ((TextField) row.getChildren().get(0)).setText("GitHub");
+            ((TextField) row.getChildren().get(1)).setText("https://github.com/rvi");
+            assertFalse(button("start").isDisabled());
+            final var bio = (javafx.scene.control.TextArea) view.lookup("#profileBio");
+            bio.setText("x".repeat(200));
+            assertTrue(button("start").isDisabled());
+            bio.setText("Developer");
+            assertFalse(button("start").isDisabled());
+            button("start").fire();
+        });
+        await(() -> service.callback != null);
+        assertTrue(service.writtenUrl.contains("#v=1&n=Rithush&b=Developer"));
+        assertTrue(service.writtenUrl.contains("&l=GitHub&u=https%3A%2F%2Fgithub.com%2Frvi"));
+    }
+
+    @Test
     void showsActionableReaderFailureAndDisablesStart() throws Exception
     {
         load(true);
@@ -155,7 +180,8 @@ class MainControllerTest
             final var loader = new FXMLLoader(getClass().getResource("/com/rvi/main.fxml"));
             loader.setControllerFactory(type -> controller);
             view = loader.load();
-            new Scene(view, 560, 440);
+            new Scene(view, 660, 760);
+            ((javafx.scene.control.CheckBox) view.lookup("#profileMode")).setSelected(false);
         });
         awaitFx(() -> !button("refresh").isDisabled());
     }
@@ -257,6 +283,7 @@ class MainControllerTest
     {
         private boolean readerFailure;
         private boolean rejectStart;
+        private volatile String writtenUrl;
         private volatile boolean startAttempted;
         private volatile boolean stopped;
         private volatile boolean closed;
@@ -272,6 +299,7 @@ class MainControllerTest
         {
             startAttempted = true;
             if (rejectStart) throw new IllegalArgumentException("Use an HTTPS URL");
+            writtenUrl = url;
             this.callback = callback;
         }
 
@@ -279,3 +307,4 @@ class MainControllerTest
         public void close() { closed = true; }
     }
 }
+

@@ -2,23 +2,40 @@
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 <VBox fx:id="root" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.rvi.presentation.MainController"
-      stylesheets="@socialcard.css" styleClass="socialcard" prefWidth="560" prefHeight="440">
+      stylesheets="@socialcard.css" styleClass="socialcard" prefWidth="660" prefHeight="760">
     <StackPane VBox.vgrow="ALWAYS" styleClass="content">
-        <VBox fx:id="setup" spacing="0" alignment="TOP_LEFT">
-            <Label text="Write NFC cards" styleClass="heading"/>
+        <ScrollPane fx:id="setupScroll" fitToWidth="true" styleClass="setup-scroll">
+        <content><VBox fx:id="setup" spacing="0" alignment="TOP_LEFT">
+            <Label text="Create your SocialCard" styleClass="heading"/>
             <Label text="Reader" labelFor="$readers" styleClass="field-label"/>
             <HBox spacing="8" styleClass="reader-field">
                 <ComboBox fx:id="readers" maxWidth="Infinity" HBox.hgrow="ALWAYS" promptText="Select a reader"/>
                 <Button fx:id="refresh" text="↻" onAction="#refreshReaders" styleClass="refresh" accessibleText="Refresh readers"/>
             </HBox>
-            <Label text="URL" labelFor="$destination" styleClass="field-label"/>
-            <TextField fx:id="destination" promptText="https://example.com" onAction="#startBatch"/>
+            <CheckBox fx:id="profileMode" text="Store a profile on the card" selected="true"/>
+            <Label text="Profile viewer URL / direct destination" labelFor="$destination" styleClass="field-label"/>
+            <TextField fx:id="destination" promptText="https://your-domain.ch/"/>
+            <VBox fx:id="profileFields" spacing="8">
+                <Label text="Name" labelFor="$profileName" styleClass="field-label"/>
+                <TextField fx:id="profileName" promptText="Your name"/>
+                <Label text="Description (optional)" labelFor="$profileBio" styleClass="field-label"/>
+                <TextArea fx:id="profileBio" promptText="A short introduction" prefRowCount="2" wrapText="true"/>
+                <Label text="Links" styleClass="field-label"/>
+                <ScrollPane fitToWidth="true" prefViewportHeight="130" minHeight="80">
+                    <content><VBox fx:id="linkRows" spacing="8"/></content>
+                </ScrollPane>
+                <Button text="Add link" onAction="#addLink"/>
+                <Label text="Changes require rewriting the card. Profile data is visible to anyone with its URL."
+                       wrapText="true" styleClass="hint"/>
+            </VBox>
+            <Label fx:id="capacity" wrapText="true" styleClass="secondary"/>
             <HBox spacing="16" alignment="CENTER_LEFT" styleClass="actions">
-                <Button fx:id="start" text="Start batch" onAction="#startBatch" styleClass="primary"/>
+                <Button fx:id="start" text="Write cards" onAction="#startBatch" styleClass="primary"/>
                 <Label text="Replaces existing card content." styleClass="hint" wrapText="true"/>
             </HBox>
             <Label fx:id="feedback" visible="false" wrapText="true" styleClass="feedback"/>
-        </VBox>
+        </VBox></content>
+        </ScrollPane>
         <VBox fx:id="session" visible="false">
             <HBox spacing="16" styleClass="summary" alignment="CENTER_LEFT">
                 <Label fx:id="selectedReader" maxWidth="190" styleClass="secondary"/>
@@ -34,7 +51,7 @@
                 <Label fx:id="count" text="0" styleClass="count"/>
                 <Label text="cards verified" styleClass="secondary"/>
                 <Region HBox.hgrow="ALWAYS"/>
-                <Button fx:id="stop" text="Stop batch" onAction="#stopBatch"/>
+                <Button fx:id="stop" text="Stop writing" onAction="#stopBatch"/>
             </HBox>
         </VBox>
     </StackPane>
@@ -48,3 +65,4 @@
         <ListView fx:id="activity" prefHeight="105" minHeight="60" accessibleText="Recent activity"/>
     </VBox>
 </VBox>
+
