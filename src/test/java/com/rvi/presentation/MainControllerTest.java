@@ -127,7 +127,7 @@ class MainControllerTest
             button("start").fire();
         });
         await(() -> service.callback != null);
-        assertTrue(service.writtenUrl.startsWith("https://rithush.dev/#v=1&n=Rithush&b=Developer"));
+        assertTrue(service.writtenUrl.startsWith("https://socialcard.rithush.dev/#v=1&n=Rithush&b=Developer"));
         assertTrue(service.writtenUrl.contains("&l=GitHub&u=https%3A%2F%2Fgithub.com%2Frvi"));
     }
 

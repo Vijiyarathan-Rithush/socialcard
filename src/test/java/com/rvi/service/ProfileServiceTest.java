@@ -17,7 +17,7 @@ class ProfileServiceTest
         final String url = service.createUrl("Rithush & Co", "Hi + 👋", links);
         assertTrue(url.contains("#v=1&n=Rithush%20%26%20Co&b=Hi%20%2B%20%F0%9F%91%8B"));
         assertNull(URI.create(url).getQuery());
-        assertEquals("rithush.dev", URI.create(url).getHost());
+        assertEquals("socialcard.rithush.dev", URI.create(url).getHost());
         assertTrue(service.encodedBytes(url) <= 496);
     }
 

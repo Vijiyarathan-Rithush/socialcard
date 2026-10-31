@@ -63,7 +63,7 @@ Set `JAVA_HOME` to your JDK 25 installation. Maven downloads the JavaFX dependen
 
 1. Host the static viewer (see below), then connect your NFC reader and click **Refresh**.
 2. Select the reader. Leave **Store a profile on the card** enabled.
-3. Enter your name, optional description and links. Profile links always use `https://rithush.dev/`.
+3. Enter your name, optional description and links. Profile links always use `https://socialcard.rithush.dev/`.
 4. Keep the profile within the displayed supported NDEF size. The counter includes all NDEF formatting bytes.
 5. Click **Write cards**, place a card on the reader and wait for verification.
 6. Remove it and present another card to write the same profile, or click **Stop writing** to edit.
@@ -139,7 +139,7 @@ How a receiving device handles multiple URI records depends on its operating sys
 The `docs/` directory contains a buildless, public-facing viewer. Serve `index.html`,
 `style.css` and `viewer.mjs` together over HTTPS. No API, database, login or build step is required.
 For example, you can configure GitHub Pages to serve `/docs` from the branch containing these files.
-The desktop writer uses the fixed viewer address `https://rithush.dev/`. The included `docs/CNAME`
+The desktop writer uses the fixed viewer address `https://socialcard.rithush.dev/`. The included `docs/CNAME`
 sets this domain when using GitHub Pages. Hosting, DNS and HTTPS still need to be configured with
 your provider; this change does not modify those settings. A private page requiring login is unsuitable for general card recipients.
 

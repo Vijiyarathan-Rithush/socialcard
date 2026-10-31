@@ -9,7 +9,7 @@ import java.util.List;
 /** Version 1 profile fragments shared with the static viewer in docs/. */
 public final class ProfileService
 {
-    public static final String VIEWER_URL = "https://rithush.dev/";
+    public static final String VIEWER_URL = "https://socialcard.rithush.dev/";
     public static final int CAPACITY_BYTES = com.rvi.domain.NDefMessage.MAX_NDEF_BYTES;
 
     public record Link(String label, String url) {}
