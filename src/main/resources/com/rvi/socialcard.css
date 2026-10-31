@@ -61,3 +61,7 @@
 .activity-pane .list-cell:selected { -fx-background-color: #eeefea; -fx-text-fill: #242623; }
 .activity-pane .scroll-bar { -fx-background-color: transparent; }
 .activity-pane .scroll-bar .thumb { -fx-background-color: #c6c9c0; -fx-background-radius: 4; }
+
+
+.setup-scroll, .setup-scroll > .viewport { -fx-background-color: transparent; }
+.setup-scroll { -fx-padding: 0; -fx-background-insets: 0; }
