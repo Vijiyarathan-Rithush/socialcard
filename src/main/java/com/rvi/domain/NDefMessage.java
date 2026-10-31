@@ -2,131 +2,61 @@ package com.rvi.domain;
 
 import com.rvi.domain.exception.NDefMessageException;
 
+/** NDEF URI records inside a Type 2 TLV, bounded by NTAG215's factory CC area. */
 public record NDefMessage(byte[] data)
 {
-    private static final byte NDEF_TLV = 0x03;
-    private static final byte TERMINATOR = (byte) 0xFE;
-    private static final byte TYPE_LENGTH = 0x01;
-    private static final byte URI_TYPE = 0x55;
-    private static final byte HTTPS_PREFIX = 0x04;
-
-    private static final int TLV_TYPE_OFFSET = 0;
-    private static final int TLV_LENGTH_OFFSET = 1;
-    private static final int TLV_HEADER_BYTES = 2;
-    private static final int TERMINATOR_BYTES = 1;
-    private static final int TLV_OVERHEAD = TLV_HEADER_BYTES + TERMINATOR_BYTES;
-
-    private static final int EXTENDED_TLV_LENGTH_MARKER = 0xFF;
-
-    private static final int TYPE_LENGTH_OFFSET = 1;
-    private static final int PAYLOAD_LENGTH_OFFSET = 2;
-    private static final int URI_TYPE_OFFSET = 3;
-    private static final int URI_PREFIX_OFFSET = 4;
-
-    private static final int URI_RECORD_OVERHEAD = 4;
-    private static final int MIN_URI_PAYLOAD_LENGTH = 1;
-    private static final int MIN_URI_RECORD_LENGTH = URI_RECORD_OVERHEAD + MIN_URI_PAYLOAD_LENGTH;
-    private static final int MIN_MESSAGE_LENGTH = TLV_OVERHEAD + MIN_URI_RECORD_LENGTH;
-
-    private static final int MESSAGE_BEGIN_MASK = 0x80;
-    private static final int MESSAGE_END_MASK = 0x40;
-    private static final int RECORD_FORMAT_MASK = 0x3F;
-    private static final int SHORT_URI_RECORD_FORMAT = 0x11;
+    // NTAG215 advertises 0x3E * 8 bytes, despite 504 bytes of physical user memory.
+    public static final int MAX_NDEF_BYTES = 496;
 
     public NDefMessage
     {
-        if (data == null || data.length < MIN_MESSAGE_LENGTH)
-        {
-            throw new NDefMessageException("Data is missing or too short");
-        }
-
+        if (data == null || data.length < 8 || data.length > MAX_NDEF_BYTES)
+            throw new NDefMessageException("NDEF data must fit the 496-byte NTAG215 NDEF area");
         data = data.clone();
+        if (data[0] != 0x03) throw new NDefMessageException("Missing NDEF TLV");
 
-        if (data[TLV_TYPE_OFFSET] != NDEF_TLV)
-        {
-            throw new NDefMessageException("Missing NDEF TLV");
-        }
-
-        final int ndefLength = Byte.toUnsignedInt(data[TLV_LENGTH_OFFSET]);
-
-        if (ndefLength == EXTENDED_TLV_LENGTH_MARKER)
-        {
-            throw new NDefMessageException("Extended TLV length is not supported");
-        }
-
-        if (ndefLength != data.length - TLV_OVERHEAD)
-        {
+        final boolean extended = unsigned(data[1]) == 0xFF;
+        final int headerBytes = extended ? 4 : 2;
+        final int length = extended ? (unsigned(data[2]) << 8) | unsigned(data[3]) : unsigned(data[1]);
+        if (length == 0 || (extended && length < 255) || length != data.length - headerBytes - 1)
             throw new NDefMessageException("Invalid NDEF length");
-        }
+        final int end = data.length - 1;
+        if (unsigned(data[end]) != 0xFE) throw new NDefMessageException("Missing terminator");
 
-        final int ndefEndExclusive = data.length - TERMINATOR_BYTES;
-
-        if (data[ndefEndExclusive] != TERMINATOR)
+        int offset = headerBytes;
+        boolean first = true;
+        while (offset < end)
         {
-            throw new NDefMessageException("Missing terminator");
-        }
-
-        int recordOffset = TLV_HEADER_BYTES;
-        boolean firstRecord = true;
-
-        while (recordOffset < ndefEndExclusive)
-        {
-            if (ndefEndExclusive - recordOffset < MIN_URI_RECORD_LENGTH)
-            {
+            if (end - offset < 5) throw new NDefMessageException("Incomplete URI record");
+            final int header = unsigned(data[offset]);
+            final boolean shortRecord = (header & 0x10) != 0;
+            final int recordHeaderBytes = shortRecord ? 4 : 7;
+            if (end - offset < recordHeaderBytes + 1)
                 throw new NDefMessageException("Incomplete URI record");
-            }
-
-            final int header = Byte.toUnsignedInt(data[recordOffset]);
-            final int payloadLength = Byte.toUnsignedInt(data[recordOffset + PAYLOAD_LENGTH_OFFSET]);
-
-            final boolean messageBegin = (header & MESSAGE_BEGIN_MASK) != 0;
-            final boolean messageEnd = (header & MESSAGE_END_MASK) != 0;
-
-            if ((header & RECORD_FORMAT_MASK) != SHORT_URI_RECORD_FORMAT || messageBegin != firstRecord)
-            {
+            // TNF=well-known, no chunks or ID; MB only on the first record.
+            if ((header & 0x2F) != 0x01 || ((header & 0x80) != 0) != first)
                 throw new NDefMessageException("Invalid record header");
-            }
+            if (data[offset + 1] != 1) throw new NDefMessageException("Invalid type length");
 
-            if (data[recordOffset + TYPE_LENGTH_OFFSET] != TYPE_LENGTH)
-            {
-                throw new NDefMessageException("Invalid type length");
-            }
-
-            if (payloadLength < MIN_URI_PAYLOAD_LENGTH)
-            {
-                throw new NDefMessageException("Missing URI prefix");
-            }
-
-            final int nextRecordOffset = recordOffset + URI_RECORD_OVERHEAD + payloadLength;
-
-            if (nextRecordOffset > ndefEndExclusive)
-            {
+            long payloadLength = unsigned(data[offset + 2]);
+            if (!shortRecord)
+                for (int index = 3; index <= 5; index++)
+                    payloadLength = (payloadLength << 8) | unsigned(data[offset + index]);
+            if (payloadLength < 1 || payloadLength > end - offset - recordHeaderBytes)
                 throw new NDefMessageException("Invalid payload length");
-            }
-
-            if (data[recordOffset + URI_TYPE_OFFSET] != URI_TYPE)
-            {
-                throw new NDefMessageException("Expected URI record");
-            }
-
-            if (data[recordOffset + URI_PREFIX_OFFSET] != HTTPS_PREFIX)
-            {
-                throw new NDefMessageException("Expected HTTPS prefix");
-            }
-
-            if (messageEnd != (nextRecordOffset == ndefEndExclusive))
-            {
+            final int typeOffset = offset + recordHeaderBytes - 1;
+            if (data[typeOffset] != 0x55 || data[typeOffset + 1] != 0x04)
+                throw new NDefMessageException("Expected HTTPS URI record");
+            final int next = offset + recordHeaderBytes + (int) payloadLength;
+            if (((header & 0x40) != 0) != (next == end))
                 throw new NDefMessageException("Invalid message end flag");
-            }
-
-            recordOffset = nextRecordOffset;
-            firstRecord = false;
+            offset = next;
+            first = false;
         }
     }
+
+    private static int unsigned(final byte value) { return Byte.toUnsignedInt(value); }
 
     @Override
-    public byte[] data()
-    {
-        return data.clone();
-    }
+    public byte[] data() { return data.clone(); }
 }

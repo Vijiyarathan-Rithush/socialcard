@@ -110,7 +110,6 @@ class MainControllerTest
         load(false);
         onFx(() -> {
             ((javafx.scene.control.CheckBox) view.lookup("#profileMode")).setSelected(true);
-            ((TextField) view.lookup("#destination")).setText("https://example.com/");
             ((TextField) view.lookup("#profileName")).setText("Rithush");
             final var rows = (javafx.scene.layout.VBox) view.lookup("#linkRows");
             final var row = (javafx.scene.layout.HBox) rows.getChildren().getFirst();
@@ -119,13 +118,19 @@ class MainControllerTest
             assertFalse(button("start").isDisabled());
             final var bio = (javafx.scene.control.TextArea) view.lookup("#profileBio");
             bio.setText("x".repeat(200));
+            ((TextField) row.getChildren().get(1)).setText("https://a.ch/" + "x".repeat(400));
             assertTrue(button("start").isDisabled());
             bio.setText("Developer");
+            ((TextField) row.getChildren().get(1)).setText("https://github.com/rvi");
+            assertFalse(view.lookup("#destination").isVisible());
             assertFalse(button("start").isDisabled());
+            assertEquals("Rithush", label("previewName").getText());
+            assertEquals("Developer", label("previewBio").getText());
+            assertTrue(((javafx.scene.control.ProgressBar) view.lookup("#capacityMeter")).getProgress() > 0);
             button("start").fire();
         });
         await(() -> service.callback != null);
-        assertTrue(service.writtenUrl.contains("#v=1&n=Rithush&b=Developer"));
+        assertTrue(service.writtenUrl.startsWith("https://socialcard.rithush.dev/#v=1&n=Rithush&b=Developer"));
         assertTrue(service.writtenUrl.contains("&l=GitHub&u=https%3A%2F%2Fgithub.com%2Frvi"));
     }
 
@@ -180,7 +185,7 @@ class MainControllerTest
             final var loader = new FXMLLoader(getClass().getResource("/com/rvi/main.fxml"));
             loader.setControllerFactory(type -> controller);
             view = loader.load();
-            new Scene(view, 660, 760);
+            new Scene(view, 1040, 780);
             ((javafx.scene.control.CheckBox) view.lookup("#profileMode")).setSelected(false);
         });
         awaitFx(() -> !button("refresh").isDisabled());

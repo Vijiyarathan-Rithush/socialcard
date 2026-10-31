@@ -114,9 +114,9 @@ class ReaderRepositoryTest
     }
 
     @Test
-    void handlesMaximumMessageLength() throws CardException
+    void handlesExtendedMessageAtMaximumCapacity() throws CardException
     {
-        String url = "https://a.ch/" + "a".repeat(244);
+        String url = "https://a.ch/" + "a".repeat(478);
         NDefMessage input = new NDefEncoder().encodeURI(url);
 
         repository.write(input);
@@ -125,7 +125,7 @@ class ReaderRepositoryTest
         int highestPage = channel.commands.stream().mapToInt(CommandAPDU::getP2).max().orElseThrow();
 
         assertArrayEquals(input.data(), actual);
-        assertEquals(68, highestPage);
+        assertEquals(127, highestPage);
 
         for (CommandAPDU command : channel.commands)
         {
@@ -133,6 +133,28 @@ class ReaderRepositoryTest
 
             assertTrue(page >= 4 && page <= 129);
         }
+    }
+
+    @Test
+    void publishesExtendedLengthOnlyAfterWritingTheBody() throws CardException
+    {
+        NDefMessage input = new NDefEncoder().encodeURI("https://a.ch/" + "x".repeat(478));
+        Arrays.fill(channel.memory, 512, 520, (byte) 0x7F);
+        repository.write(input);
+        final var writes = channel.commands.stream().filter(command -> command.getINS() == 0xD6).toList();
+        assertArrayEquals(new byte[] {3, 0, (byte) 0xFE, 0}, writes.getFirst().getData());
+        assertArrayEquals(Arrays.copyOf(input.data(), 4), writes.getLast().getData());
+        assertEquals(4, writes.getLast().getP2());
+        assertArrayEquals(new byte[] {127, 127, 127, 127, 127, 127, 127, 127},
+                Arrays.copyOfRange(channel.memory, 512, 520));
+    }
+
+    @Test
+    void rejectsExtendedLengthOutsideCapacityWithoutReadingBody()
+    {
+        channel.load(new byte[] {3, (byte) 255, (byte) 255, (byte) 255});
+        assertThrows(CardException.class, repository::read);
+        assertEquals(1, channel.commands.size());
     }
 
     @Test

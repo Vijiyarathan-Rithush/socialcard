@@ -19,16 +19,9 @@ public final class SocialCardApplication extends Application
         loader.setControllerFactory(type -> controller);
         final VBox root = loader.load();
         stage.setScene(new Scene(root));
-        final VBox activity = (VBox) root.lookup("#activityPane");
-        activity.visibleProperty().addListener((observable, previous, expanded) -> {
-            if (!stage.isMaximized())
-            {
-                stage.setHeight(stage.getHeight() + (expanded ? 1 : -1) * activity.prefHeight(-1));
-            }
-        });
         stage.setTitle("SocialCard");
-        stage.setMinWidth(500);
-        stage.setMinHeight(480);
+        stage.setMinWidth(900);
+        stage.setMinHeight(620);
         stage.setOnCloseRequest(event -> {
             event.consume();
             stage.getScene().getRoot().setDisable(true);

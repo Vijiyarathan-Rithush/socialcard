@@ -14,31 +14,36 @@ class ProfileServiceTest
     @Test
     void createsVersionedFragmentAndChecksActualNdefBytes()
     {
-        final String url = service.createUrl("https://example.com/", "Rithush & Co", "Hi + 👋", links);
+        final String url = service.createUrl("Rithush & Co", "Hi + 👋", links);
         assertTrue(url.contains("#v=1&n=Rithush%20%26%20Co&b=Hi%20%2B%20%F0%9F%91%8B"));
         assertNull(URI.create(url).getQuery());
-        assertTrue(service.encodedBytes(url) <= 257);
+        assertEquals("socialcard.rithush.dev", URI.create(url).getHost());
+        assertTrue(service.encodedBytes(url) <= 496);
     }
 
     @Test
-    void rejectsInvalidViewerAndUnsafeLinks()
+    void rejectsMissingNameAndUnsafeLinks()
     {
-        for (final String viewer : List.of("http://example.com", "https://u:p@example.com",
-                "https://example.com/#old", "https://example.com/?old=1"))
-            assertThrows(IllegalArgumentException.class,
-                    () -> service.createUrl(viewer, "Rithush", "", links));
         assertThrows(IllegalArgumentException.class, () -> service.createUrl(
-                "https://example.com", "Rithush", "",
+                "Rithush", "",
                 List.of(new ProfileService.Link("Click", "javascript:alert(1)"))));
         assertThrows(IllegalArgumentException.class,
-                () -> service.createUrl("https://example.com", "", "", links));
+                () -> service.createUrl("", "", links));
+    }
+
+    @Test
+    void storesProfilesBeyondTheOldShortTlvLimit()
+    {
+        final String url = service.createUrl("Rithush", "x".repeat(200), links);
+        assertTrue(service.encodedBytes(url) > 257);
+        assertTrue(service.encodedBytes(url) <= 496);
     }
 
     @Test
     void refusesOversizedProfileBeforeWriting()
     {
-        final String url = service.createUrl("https://example.com/", "Rithush",
-                "x".repeat(200), links);
+        final String url = service.createUrl("Rithush",
+                "x".repeat(200), List.of(new ProfileService.Link("Long", "https://a.ch/" + "x".repeat(400))));
         assertThrows(IllegalArgumentException.class, () -> service.encodedBytes(url));
     }
 }

@@ -9,14 +9,13 @@ import java.util.List;
 /** Version 1 profile fragments shared with the static viewer in docs/. */
 public final class ProfileService
 {
+    public static final String VIEWER_URL = "https://socialcard.rithush.dev/";
+    public static final int CAPACITY_BYTES = com.rvi.domain.NDefMessage.MAX_NDEF_BYTES;
+
     public record Link(String label, String url) {}
 
-    public String createUrl(final String viewer, final String name, final String bio,
-                            final List<Link> links)
+    public String createUrl(final String name, final String bio, final List<Link> links)
     {
-        final URI base = https(viewer);
-        if (base.getRawFragment() != null || base.getRawQuery() != null)
-            throw new IllegalArgumentException("Viewer URL must not contain a query or fragment");
         final String title = required(name, "Name", 100);
         final String description = bio == null ? "" : bio.strip();
         if (description.length() > 200)
@@ -33,7 +32,7 @@ public final class ProfileService
             final String url = https(link.url()).toASCIIString();
             fragment.append("&l=").append(encode(label)).append("&u=").append(encode(url));
         }
-        return base.toASCIIString() + "#" + fragment;
+        return VIEWER_URL + "#" + fragment;
     }
 
     /** Includes the TLV and terminator, matching the bytes written to the card. */
@@ -42,7 +41,7 @@ public final class ProfileService
         try { return new NDefEncoder().encodeURI(url).data().length; }
         catch (com.rvi.application.exception.NDefEncodingException exception)
         {
-            throw new IllegalArgumentException("Profile exceeds supported card size; shorten the viewer URL, description or links");
+            throw new IllegalArgumentException("Profile exceeds the 496-byte NTAG215 NDEF area; shorten the description or links");
         }
     }
 

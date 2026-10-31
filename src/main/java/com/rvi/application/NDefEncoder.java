@@ -17,8 +17,8 @@ public final class NDefEncoder
     private static final String HTTPS_SCHEME = "https";
     private static final String HTTPS_URI_PREFIX = "https://";
 
-    private static final int MAX_URI_SUFFIX_BYTES = 249;
-    private static final int MAX_SHORT_NDEF_LENGTH = 254;
+    // Extended TLV + terminator: 5 bytes; normal URI record + prefix: 8 bytes.
+    private static final int MAX_URI_SUFFIX_BYTES = NDefMessage.MAX_NDEF_BYTES - 5 - 8;
 
     private static final int TYPE_LENGTH = 0x01;
     private static final int URI_TYPE = 0x55;
@@ -73,15 +73,24 @@ public final class NDefEncoder
 
             final byte[] urlBytes = getUrlBytes(uri);
             final int payloadLength = urlBytes.length + URI_PREFIX_BYTES;
-            final int recordLength = payloadLength + URI_RECORD_OVERHEAD;
+            final boolean shortRecord = payloadLength <= 255;
+            final int recordLength = payloadLength + (shortRecord ? URI_RECORD_OVERHEAD : 7);
+            final int combinedLength = records.size() + recordLength;
+            final int tlvOverhead = combinedLength < 255 ? 3 : 5;
 
-            if (records.size() + recordLength > MAX_SHORT_NDEF_LENGTH)
+            if (combinedLength + tlvOverhead > NDefMessage.MAX_NDEF_BYTES)
             {
-                throw new NDefEncodingException("Combined NDEF message exceeds " + MAX_SHORT_NDEF_LENGTH + " bytes");
+                throw new NDefEncodingException("NDEF message exceeds the 496-byte NTAG215 NDEF area");
             }
 
-            records.write(getRecordHeader(index, urls.size()));
+            records.write(getRecordHeader(index, urls.size()) & (shortRecord ? 0xFF : ~0x10));
             records.write(TYPE_LENGTH);
+            if (!shortRecord)
+            {
+                records.write(payloadLength >>> 24);
+                records.write(payloadLength >>> 16);
+                records.write(payloadLength >>> 8);
+            }
             records.write(payloadLength);
             records.write(URI_TYPE);
             records.write(HTTPS_PREFIX);
@@ -91,6 +100,11 @@ public final class NDefEncoder
         final ByteArrayOutputStream output = new ByteArrayOutputStream();
 
         output.write(NDEF_TLV);
+        if (records.size() >= 255)
+        {
+            output.write(0xFF);
+            output.write(records.size() >>> 8);
+        }
         output.write(records.size());
         output.writeBytes(records.toByteArray());
         output.write(TERMINATOR);

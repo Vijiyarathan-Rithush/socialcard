@@ -5,6 +5,7 @@ import com.rvi.service.IBatchService;
 import com.rvi.service.ProfileService;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.control.ProgressBar;
 import javafx.scene.control.TextArea;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -59,6 +60,16 @@ public final class MainController
     @FXML private TextArea profileBio;
     @FXML private VBox linkRows;
     @FXML private Label capacity;
+    @FXML private Label destinationLabel;
+    @FXML private Label viewerLabel;
+    @FXML private VBox writerDock;
+    @FXML private VBox directPanel;
+    @FXML private VBox previewColumn;
+    @FXML private Label previewName;
+    @FXML private Label previewBio;
+    @FXML private VBox previewLinks;
+    @FXML private ProgressBar capacityMeter;
+    @FXML private Button addLinkButton;
     private final ProfileService profiles = new ProfileService();
     private final List<ProfileRow> profileRows = new ArrayList<>();
     private String preparedUrl;
@@ -75,12 +86,27 @@ public final class MainController
     @FXML
     private void initialize()
     {
+        writerDock.visibleProperty().bind(setup.visibleProperty());
+        writerDock.managedProperty().bind(writerDock.visibleProperty());
         setupScroll.visibleProperty().bind(setup.visibleProperty());
         setupScroll.managedProperty().bind(setup.visibleProperty());
         setup.managedProperty().bind(setup.visibleProperty());
         session.managedProperty().bind(session.visibleProperty());
         activityPane.managedProperty().bind(activityPane.visibleProperty());
         feedback.managedProperty().bind(feedback.visibleProperty());
+        destination.visibleProperty().bind(profileMode.selectedProperty().not());
+        destination.managedProperty().bind(destination.visibleProperty());
+        destinationLabel.visibleProperty().bind(destination.visibleProperty());
+        destinationLabel.managedProperty().bind(destination.visibleProperty());
+        viewerLabel.setText(ProfileService.VIEWER_URL.replace("https://", "").replaceAll("/$", ""));
+        directPanel.visibleProperty().bind(profileMode.selectedProperty().not());
+        directPanel.managedProperty().bind(directPanel.visibleProperty());
+        previewColumn.visibleProperty().bind(profileMode.selectedProperty());
+        previewColumn.managedProperty().bind(previewColumn.visibleProperty());
+        capacityMeter.visibleProperty().bind(profileMode.selectedProperty());
+        capacityMeter.managedProperty().bind(capacityMeter.visibleProperty());
+        viewerLabel.visibleProperty().bind(profileMode.selectedProperty());
+        viewerLabel.managedProperty().bind(viewerLabel.visibleProperty());
         profileFields.managedProperty().bind(profileFields.visibleProperty());
         profileFields.visibleProperty().bind(profileMode.selectedProperty());
         profileMode.selectedProperty().addListener((observable, old, value) -> updateProfile());
@@ -90,8 +116,8 @@ public final class MainController
         addLink();
         updateProfile();
         start.disableProperty().bind(Bindings.createBooleanBinding(
-                () -> readers.getValue() == null || destination.getText().isBlank()
-                        || refresh.isDisabled() || (profileMode.isSelected() && preparedUrl == null),
+                () -> readers.getValue() == null || refresh.isDisabled()
+                        || (profileMode.isSelected() ? preparedUrl == null : destination.getText().isBlank()),
                 readers.valueProperty(), destination.textProperty(), refresh.disableProperty(),
                 profileMode.selectedProperty(), capacity.textProperty()));
         refreshReaders();
@@ -104,20 +130,28 @@ public final class MainController
         final var label = new TextField();
         label.setPromptText("Label");
         label.setAccessibleText("Link label");
-        label.setPrefWidth(120);
+        label.setPrefWidth(110);
+        label.setMinWidth(95);
+        label.setMaxWidth(130);
         final var url = new TextField();
         url.setPromptText("https://...");
         url.setAccessibleText("Link HTTPS URL");
+        url.setMinWidth(120);
         HBox.setHgrow(url, Priority.ALWAYS);
-        final var remove = new Button("Remove");
+        final var remove = new Button("×");
+        remove.setAccessibleText("Remove link");
+        remove.getStyleClass().add("remove-link");
         final var container = new HBox(8, label, url, remove);
+        container.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
         final var row = new ProfileRow(container, label, url);
         profileRows.add(row);
         linkRows.getChildren().add(container);
+        addLinkButton.setDisable(profileRows.size() >= 10);
         label.textProperty().addListener((observable, old, value) -> updateProfile());
         url.textProperty().addListener((observable, old, value) -> updateProfile());
         remove.setOnAction(event -> {
             profileRows.remove(row);
+            addLinkButton.setDisable(false);
             linkRows.getChildren().remove(container);
             updateProfile();
         });
@@ -127,9 +161,13 @@ public final class MainController
     private void updateProfile()
     {
         preparedUrl = null;
+        updatePreview();
+        capacityMeter.setProgress(0);
+        capacityMeter.pseudoClassStateChanged(ERROR, false);
+        capacity.pseudoClassStateChanged(ERROR, false);
         if (!profileMode.isSelected())
         {
-            capacity.setText("Direct URL mode");
+            capacity.setText("Direct link. The destination is checked before writing.");
             return;
         }
         try
@@ -137,15 +175,38 @@ public final class MainController
             final var links = profileRows.stream()
                     .map(row -> new ProfileService.Link(row.label().getText(), row.url().getText()))
                     .toList();
-            final String url = profiles.createUrl(destination.getText(), profileName.getText(),
+            final String url = profiles.createUrl(profileName.getText(),
                     profileBio.getText(), links);
             final int bytes = profiles.encodedBytes(url);
             preparedUrl = url;
-            capacity.setText(bytes + " / 257 supported NDEF bytes");
+            capacityMeter.setProgress((double) bytes / ProfileService.CAPACITY_BYTES);
+            capacity.setText(bytes + " / " + ProfileService.CAPACITY_BYTES + " NTAG215 NDEF bytes");
         }
         catch (IllegalArgumentException exception)
         {
-            capacity.setText(exception.getMessage());
+            final boolean empty = profileName.getText().isBlank() && profileBio.getText().isBlank()
+                    && profileRows.stream().allMatch(row -> row.label().getText().isBlank() && row.url().getText().isBlank());
+            capacity.setText(empty ? "Add your details to calculate storage." : exception.getMessage());
+            capacity.pseudoClassStateChanged(ERROR, !empty);
+            capacityMeter.pseudoClassStateChanged(ERROR, !empty);
+        }
+    }
+
+    private void updatePreview()
+    {
+        previewName.setText(profileName.getText().isBlank() ? "Your name" : profileName.getText().strip());
+        previewBio.setText(profileBio.getText().strip());
+        previewBio.setVisible(!previewBio.getText().isBlank());
+        previewBio.setManaged(previewBio.isVisible());
+        previewLinks.getChildren().clear();
+        for (final ProfileRow row : profileRows)
+        {
+            final String text = row.label().getText().isBlank() ? "Your link" : row.label().getText().strip();
+            final var link = new Label(text + "  ↗");
+            link.getStyleClass().add("preview-link");
+            link.setMaxWidth(Double.MAX_VALUE);
+            link.setWrapText(true);
+            previewLinks.getChildren().add(link);
         }
     }
 
@@ -196,7 +257,7 @@ public final class MainController
         count.setText("0");
         showFeedback("", false);
         setActive(true);
-        showStatus("", "Preparing cards", "Preparing the reader ...", false, false);
+        showStatus("◎", "Preparing cards", "Preparing the reader ...", false, false);
         executor.execute(() -> {
             try
             {
@@ -222,7 +283,7 @@ public final class MainController
         addEvent(update.message());
         switch (update.state())
         {
-            case ACTIVE, READY -> showStatus("", "Place a card on the reader",
+            case ACTIVE, READY -> showStatus("◎", "Place a card on the reader",
                     "Your card content will be written and verified.", false, false);
             case WRITING -> showStatus("···", "Writing and verifying",
                     "Keep the card on the reader.", false, false);
