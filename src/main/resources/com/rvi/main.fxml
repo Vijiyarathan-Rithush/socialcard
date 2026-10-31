@@ -2,70 +2,53 @@
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 <VBox fx:id="root" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.rvi.presentation.MainController"
-      stylesheets="@socialcard.css" styleClass="socialcard" prefWidth="1040" prefHeight="780">
-    <HBox alignment="CENTER_LEFT" spacing="12" styleClass="app-header">
+      stylesheets="@socialcard.css" styleClass="socialcard" prefWidth="860" prefHeight="560">
+    <fx:define><ToggleGroup fx:id="modeGroup"/></fx:define>
+    <HBox alignment="CENTER_LEFT" spacing="10" styleClass="app-header">
         <Label text="SC" styleClass="brand-mark"/>
-        <VBox spacing="3">
-            <Label text="SocialCard" styleClass="brand-name"/>
-            <Label text="NFC PROFILE STUDIO" styleClass="eyebrow"/>
-        </VBox>
+        <Label text="SocialCard" styleClass="brand-name"/>
         <Region HBox.hgrow="ALWAYS"/>
-        <Label text="NTAG215" styleClass="chip"/>
+        <HBox fx:id="modeSwitch" styleClass="mode-switch">
+            <ToggleButton fx:id="profileMode" text="Profile" toggleGroup="$modeGroup" selected="true" styleClass="mode-first"/>
+            <ToggleButton fx:id="linkMode" text="Link" toggleGroup="$modeGroup" styleClass="mode-last"/>
+        </HBox>
     </HBox>
-    <StackPane VBox.vgrow="ALWAYS" styleClass="workspace">
-        <ScrollPane fx:id="setupScroll" fitToWidth="true" styleClass="setup-scroll" hbarPolicy="NEVER">
+    <StackPane VBox.vgrow="ALWAYS">
+        <ScrollPane fx:id="setupScroll" fitToWidth="true" hbarPolicy="NEVER" styleClass="setup-scroll">
             <content>
-                <VBox fx:id="setup" spacing="22" styleClass="editor">
-                    <HBox alignment="CENTER_LEFT" spacing="20">
-                        <VBox spacing="6" HBox.hgrow="ALWAYS">
-                            <Label text="Prepare your card" styleClass="heading"/>
-                            <Label text="Add your details. Write a card. Share with a tap." styleClass="secondary"/>
-                        </VBox>
-                        <CheckBox fx:id="profileMode" text="Profile mode" selected="true" styleClass="mode-switch"/>
-                    </HBox>
+                <VBox fx:id="setup" styleClass="editor">
                     <HBox spacing="22" alignment="TOP_LEFT">
-                        <VBox spacing="18" HBox.hgrow="ALWAYS" minWidth="420">
-                            <VBox fx:id="profileFields" spacing="18">
-                                <VBox spacing="12" styleClass="panel">
-                                    <Label text="01  /  ABOUT YOU" styleClass="eyebrow"/>
-                                    <Label text="The introduction" styleClass="section-title"/>
-                                    <Label text="Name" labelFor="$profileName" styleClass="field-label"/>
-                                    <TextField fx:id="profileName" promptText="Your name"/>
-                                    <HBox alignment="CENTER_LEFT">
-                                        <Label text="Description" labelFor="$profileBio" styleClass="field-label"/>
-                                        <Region HBox.hgrow="ALWAYS"/>
-                                        <Label text="Optional" styleClass="hint"/>
-                                    </HBox>
-                                    <TextArea fx:id="profileBio" promptText="A few words about you" prefRowCount="2" wrapText="true"/>
-                                </VBox>
-                                <VBox spacing="14" styleClass="panel">
-                                    <HBox alignment="CENTER_LEFT" spacing="12">
-                                        <VBox spacing="7" HBox.hgrow="ALWAYS">
-                                            <Label text="02  /  YOUR LINKS" styleClass="eyebrow"/>
-                                            <Label text="Where to find you" styleClass="section-title"/>
-                                        </VBox>
-                                        <Button fx:id="addLinkButton" text="+ Add link" onAction="#addLink" styleClass="subtle"/>
-                                    </HBox>
-                                    <Label text="Give each link a name and an HTTPS address." wrapText="true" styleClass="secondary"/>
-                                    <VBox fx:id="linkRows" spacing="10"/>
-                                </VBox>
+                        <VBox spacing="12" HBox.hgrow="ALWAYS" minWidth="410">
+                            <VBox fx:id="profileFields" spacing="3">
+                                <Label text="Profile" styleClass="section-title"/>
+                                <Label text="Name" labelFor="$profileName" styleClass="field-label"/>
+                                <TextField fx:id="profileName" promptText="Your name"/>
+                                <HBox alignment="CENTER_LEFT" styleClass="description-label">
+                                    <Label text="Description" labelFor="$profileBio" styleClass="field-label"/>
+                                    <Region HBox.hgrow="ALWAYS"/>
+                                    <Label text="Optional" styleClass="hint"/>
+                                </HBox>
+                                <TextArea fx:id="profileBio" promptText="A few words about you" prefHeight="40" minHeight="40" maxHeight="40" wrapText="true"/>
+                                <HBox alignment="CENTER_LEFT" styleClass="links-heading">
+                                    <Label text="Links" styleClass="section-title"/>
+                                    <Region HBox.hgrow="ALWAYS"/>
+                                    <Button fx:id="addLinkButton" text="+ Add link" onAction="#addLink" styleClass="text-button"/>
+                                </HBox>
+                                <VBox fx:id="linkRows" spacing="6"/>
+                                <Label text="Public profile. Rewrite the card to update." styleClass="hint"/>
                             </VBox>
-                            <VBox fx:id="directPanel" spacing="14" styleClass="panel">
-                                <Label text="DIRECT LINK" styleClass="eyebrow"/>
-                                <Label text="One tap to your destination" styleClass="section-title"/>
+                            <VBox fx:id="directPanel" spacing="10">
+                                <Label text="Direct link" styleClass="section-title"/>
                                 <Label fx:id="destinationLabel" text="Destination URL" labelFor="$destination" styleClass="field-label"/>
                                 <TextField fx:id="destination" promptText="https://example.com/"/>
                             </VBox>
                         </VBox>
-                        <VBox fx:id="previewColumn" spacing="18" minWidth="292" prefWidth="292" maxWidth="292">
-                            <VBox fx:id="previewPane" spacing="14" styleClass="preview-pane">
-                                <Label text="LIVE PREVIEW" styleClass="preview-eyebrow"/>
-                                <Region prefHeight="8"/>
+                        <VBox fx:id="previewColumn" spacing="12" minWidth="235" prefWidth="235" maxWidth="235" styleClass="preview-column">
+                            <Label text="PREVIEW" styleClass="eyebrow"/>
+                            <VBox spacing="14" styleClass="preview-pane">
                                 <Label fx:id="previewName" text="Your name" wrapText="true" maxWidth="Infinity" styleClass="preview-name"/>
-                                <Label fx:id="previewBio" text="Your introduction appears here." wrapText="true" maxWidth="Infinity" styleClass="preview-bio"/>
-                                <VBox fx:id="previewLinks" spacing="8"/>
-                                <Region prefHeight="8"/>
-                                <Label text="Update this profile by rewriting your card." wrapText="true" styleClass="preview-bio"/>
+                                <Label fx:id="previewBio" wrapText="true" maxWidth="Infinity" styleClass="preview-bio"/>
+                                <VBox fx:id="previewLinks" spacing="6"/>
                                 <Label fx:id="viewerLabel" wrapText="true" maxWidth="Infinity" styleClass="preview-domain"/>
                             </VBox>
                         </VBox>
@@ -73,20 +56,18 @@
                 </VBox>
             </content>
         </ScrollPane>
-        <VBox fx:id="session" visible="false" spacing="24" styleClass="session-panel">
-            <HBox alignment="CENTER_LEFT" spacing="16" styleClass="summary">
-                <VBox spacing="7" HBox.hgrow="ALWAYS">
-                    <Label text="WRITING SESSION" styleClass="eyebrow"/>
-                    <Label fx:id="selectedUrl" maxWidth="600" styleClass="section-title"/>
-                </VBox>
-                <Label fx:id="selectedReader" maxWidth="240" styleClass="secondary"/>
+        <VBox fx:id="session" visible="false" spacing="16" styleClass="session-panel">
+            <HBox alignment="CENTER_LEFT" spacing="14" styleClass="summary">
+                <Label fx:id="selectedUrl" maxWidth="480" styleClass="section-title" HBox.hgrow="ALWAYS"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Label fx:id="selectedReader" maxWidth="230" styleClass="secondary"/>
             </HBox>
-            <VBox alignment="CENTER" VBox.vgrow="ALWAYS" spacing="16" styleClass="focus">
-                <Label fx:id="symbol" text="◎" styleClass="status-symbol" minHeight="80"/>
+            <VBox alignment="CENTER" VBox.vgrow="ALWAYS" spacing="12">
+                <Label fx:id="symbol" text="◎" styleClass="status-symbol"/>
                 <Label fx:id="status" text="Place a card on the reader" styleClass="status-heading" wrapText="true" textAlignment="CENTER"/>
                 <Label fx:id="instruction" wrapText="true" textAlignment="CENTER" styleClass="secondary"/>
             </VBox>
-            <HBox alignment="CENTER_LEFT" spacing="10" styleClass="session-footer">
+            <HBox alignment="CENTER_LEFT" spacing="8" styleClass="summary-bottom">
                 <Label fx:id="count" text="0" styleClass="count"/>
                 <Label text="cards verified" styleClass="secondary"/>
                 <Region HBox.hgrow="ALWAYS"/>
@@ -94,34 +75,33 @@
             </HBox>
         </VBox>
     </StackPane>
-    <VBox fx:id="writerDock" spacing="10" styleClass="writer-dock">
-        <HBox alignment="CENTER_LEFT" spacing="24">
-            <VBox spacing="8" minWidth="230" prefWidth="260" maxWidth="260">
-                <Label text="NFC READER" styleClass="eyebrow"/>
-                <HBox spacing="8">
+    <VBox fx:id="writerDock" spacing="6" styleClass="writer-dock">
+        <HBox alignment="CENTER_LEFT" spacing="20">
+            <VBox spacing="6" minWidth="200" prefWidth="230" maxWidth="230">
+                <Label text="Reader" styleClass="field-label" labelFor="$readers"/>
+                <HBox spacing="6">
                     <ComboBox fx:id="readers" maxWidth="Infinity" minWidth="0" HBox.hgrow="ALWAYS" promptText="Select reader"/>
                     <Button fx:id="refresh" text="↻" onAction="#refreshReaders" styleClass="refresh" accessibleText="Refresh readers"/>
                 </HBox>
             </VBox>
-            <VBox spacing="8" HBox.hgrow="ALWAYS" minWidth="210">
-                <Label text="CARD STORAGE" styleClass="eyebrow"/>
-                <ProgressBar fx:id="capacityMeter" progress="0" maxWidth="Infinity" accessibleText="NDEF card storage used"/>
-                <Label fx:id="capacity" wrapText="true" maxWidth="Infinity" styleClass="capacity"/>
+            <VBox spacing="7" minWidth="180" HBox.hgrow="ALWAYS">
+                <Label text="Card memory" styleClass="field-label"/>
+                <HBox alignment="CENTER_LEFT" spacing="10">
+                    <ProgressBar fx:id="capacityMeter" progress="0" maxWidth="Infinity" HBox.hgrow="ALWAYS" accessibleText="NDEF card memory used"/>
+                    <Label fx:id="capacity" wrapText="true" maxWidth="190" styleClass="capacity"/>
+                </HBox>
             </VBox>
-            <VBox spacing="8" minWidth="190" prefWidth="190" maxWidth="190">
-                <Button fx:id="start" text="Write cards  →" maxWidth="Infinity" onAction="#startBatch" styleClass="primary"/>
-                <Label text="Replaces existing card content." wrapText="true" styleClass="hint"/>
-            </VBox>
+            <Button fx:id="start" text="Write card" minWidth="132" onAction="#startBatch" styleClass="primary"/>
         </HBox>
-        <Label fx:id="feedback" visible="false" wrapText="true" maxWidth="Infinity" styleClass="feedback"/>
+        <Label fx:id="feedback" visible="false" wrapText="true" styleClass="feedback"/>
     </VBox>
-    <HBox spacing="9" alignment="CENTER_LEFT" styleClass="footer">
-        <Region styleClass="connection-dot" minWidth="6" prefWidth="6" maxWidth="6" minHeight="6" prefHeight="6" maxHeight="6"/>
+    <HBox spacing="8" alignment="CENTER_LEFT" styleClass="footer">
+        <Region styleClass="connection-dot" minWidth="5" prefWidth="5" maxWidth="5" minHeight="5" prefHeight="5" maxHeight="5"/>
         <Label fx:id="connection" text="Looking for readers ..." styleClass="secondary"/>
         <Region HBox.hgrow="ALWAYS"/>
-        <Button fx:id="activityToggle" text="Activity ▾" onAction="#toggleActivity" styleClass="disclosure" accessibleText="Expand activity"/>
+        <Button fx:id="activityToggle" text="Activity ▾" onAction="#toggleActivity" styleClass="text-button" accessibleText="Expand activity"/>
     </HBox>
     <VBox fx:id="activityPane" visible="false" styleClass="activity-pane">
-        <ListView fx:id="activity" prefHeight="105" minHeight="60" accessibleText="Recent activity"/>
+        <ListView fx:id="activity" prefHeight="90" minHeight="50" accessibleText="Recent activity"/>
     </VBox>
 </VBox>

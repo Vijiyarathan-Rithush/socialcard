@@ -3,7 +3,8 @@ package com.rvi.presentation;
 import com.rvi.service.BatchStatus;
 import com.rvi.service.IBatchService;
 import com.rvi.service.ProfileService;
-import javafx.scene.control.CheckBox;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.TextArea;
@@ -54,7 +55,9 @@ public final class MainController
     @FXML private Label count;
     @FXML private ListView<String> activity;
     @FXML private ScrollPane setupScroll;
-    @FXML private CheckBox profileMode;
+    @FXML private ToggleButton profileMode;
+    @FXML private ToggleGroup modeGroup;
+    @FXML private HBox modeSwitch;
     @FXML private VBox profileFields;
     @FXML private TextField profileName;
     @FXML private TextArea profileBio;
@@ -86,6 +89,9 @@ public final class MainController
     @FXML
     private void initialize()
     {
+        modeGroup.selectedToggleProperty().addListener((observable, previous, selected) -> {
+            if (selected == null && previous != null) previous.setSelected(true);
+        });
         writerDock.visibleProperty().bind(setup.visibleProperty());
         writerDock.managedProperty().bind(writerDock.visibleProperty());
         setupScroll.visibleProperty().bind(setup.visibleProperty());
@@ -130,9 +136,9 @@ public final class MainController
         final var label = new TextField();
         label.setPromptText("Label");
         label.setAccessibleText("Link label");
-        label.setPrefWidth(110);
-        label.setMinWidth(95);
-        label.setMaxWidth(130);
+        label.setPrefWidth(100);
+        label.setMinWidth(85);
+        label.setMaxWidth(120);
         final var url = new TextField();
         url.setPromptText("https://...");
         url.setAccessibleText("Link HTTPS URL");
@@ -167,7 +173,7 @@ public final class MainController
         capacity.pseudoClassStateChanged(ERROR, false);
         if (!profileMode.isSelected())
         {
-            capacity.setText("Direct link. The destination is checked before writing.");
+            capacity.setText("Direct HTTPS link");
             return;
         }
         try
@@ -180,13 +186,13 @@ public final class MainController
             final int bytes = profiles.encodedBytes(url);
             preparedUrl = url;
             capacityMeter.setProgress((double) bytes / ProfileService.CAPACITY_BYTES);
-            capacity.setText(bytes + " / " + ProfileService.CAPACITY_BYTES + " NTAG215 NDEF bytes");
+            capacity.setText(bytes + " / " + ProfileService.CAPACITY_BYTES + " bytes");
         }
         catch (IllegalArgumentException exception)
         {
             final boolean empty = profileName.getText().isBlank() && profileBio.getText().isBlank()
                     && profileRows.stream().allMatch(row -> row.label().getText().isBlank() && row.url().getText().isBlank());
-            capacity.setText(empty ? "Add your details to calculate storage." : exception.getMessage());
+            capacity.setText(empty ? "Add profile details" : exception.getMessage());
             capacity.pseudoClassStateChanged(ERROR, !empty);
             capacityMeter.pseudoClassStateChanged(ERROR, !empty);
         }
@@ -330,6 +336,7 @@ public final class MainController
     private void setActive(final boolean value)
     {
         active = value;
+        modeSwitch.setDisable(value);
         setup.setVisible(!value);
         session.setVisible(value);
         stop.setDisable(!value);
