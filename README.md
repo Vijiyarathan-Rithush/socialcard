@@ -18,6 +18,9 @@ in a console application, desktop application or another Java project.
 
 - Create immutable domain objects with separate fluent `Creator` classes.
 - Combine different content types in one message, preserving their order.
+- Write a link with `writeURI()` and read links as strings with `readURIs()`.
+- Decode supported records into typed content with `readContents()` or `NDefDecoder`.
+- Discover readers and monitor card insertion and removal.
 - Read and write cards through a service with automatic connection cleanup.
 - Encode short and long NDEF payloads and standard or extended TLV lengths.
 - Check the card's advertised capacity and verify each write by reading it back.
@@ -33,18 +36,14 @@ The project has been tested with an ACS ACR122U reader and NTAG215 tags.
 
 ## Installation
 
-The additions `writeURI()`, `readURIs()`, `readContents()`, `NDefDecoder` and
-`listReaders()` below are unreleased source changes. Maven Central `0.1.0` does
-not include them yet. To try this branch, run `mvn clean install` with JDK 25
-and use version `0.1.1-SNAPSHOT` in your consuming project.
-
-After installing this branch locally, add the dependency to your Maven project's `pom.xml`:
+SocialCard `0.1.1` is available on Maven Central. Add the dependency to your
+application's `pom.xml`; no local build or custom Maven repository is needed.
 
 ```xml
 <dependency>
     <groupId>io.github.vijiyarathan-rithush</groupId>
     <artifactId>socialcard</artifactId>
-    <version>0.1.1-SNAPSHOT</version>
+    <version>0.1.1</version>
 </dependency>
 ```
 
@@ -160,10 +159,93 @@ email, text phone and website); other or repeated properties are rejected.
 Wi-Fi decoding supports one open network or WPA2-Personal/AES credential.
 This is not a general-purpose vCard or WSC parser.
 
-`ReaderMonitor` runs listener callbacks on its background thread. Dispatch UI
-updates to your UI thread. `onError` reports a polling or callback failure while
-active and ends monitoring. A monitor can start only once; `close()` requests a
-stop, but an in-flight callback may finish. Create a new monitor to restart.
+## Wait for a card
+
+`connect()` does not wait for insertion. Use `ReaderMonitor` with your own
+`IReaderListener` to react when a card is placed on or removed from a reader.
+This console example keeps monitoring until Enter is pressed:
+
+```java
+import com.rvi.application.IReaderListener;
+import com.rvi.application.ReaderMonitor;
+import com.rvi.service.ReaderService;
+import javax.smartcardio.CardTerminal;
+import javax.smartcardio.TerminalFactory;
+
+public final class MonitorExample
+{
+    public static void main(final String[] args) throws Exception
+    {
+        final var names = ReaderService.listReaders();
+        if (names.isEmpty())
+        {
+            System.out.println("Connect a PC/SC reader first.");
+            return;
+        }
+
+        final String readerName = names.getFirst();
+        final CardTerminal terminal =
+                TerminalFactory.getDefault().terminals().getTerminal(readerName);
+        if (terminal == null)
+        {
+            throw new IllegalStateException("Reader disconnected: " + readerName);
+        }
+
+        final IReaderListener listener = new IReaderListener()
+        {
+            @Override
+            public void onCardInserted(final CardTerminal reader)
+            {
+                System.out.println("Card detected on " + reader.getName());
+            }
+
+            @Override
+            public void onCardRemoved(final CardTerminal reader)
+            {
+                System.out.println("Card removed");
+            }
+
+            @Override
+            public void onError(final Exception exception)
+            {
+                System.err.println(exception.getMessage());
+            }
+        };
+
+        try (final ReaderMonitor monitor = new ReaderMonitor(terminal, listener))
+        {
+            monitor.start();
+            System.out.println("Place a card on the reader. Press Enter to stop.");
+            System.in.read();
+        }
+    }
+}
+```
+
+Monitoring detects presence; it does not open a card connection. When writing,
+use `ReaderService.create(readerName)` with the same reader name. The card can
+be removed between detection and writing, so still handle write failures.
+
+Callbacks run on the monitor's background thread. A polling or callback failure
+is forwarded to `onError()` while active and ends monitoring. A monitor can
+start only once; `close()` requests a stop, but an in-flight callback may finish.
+Create a new monitor to restart.
+
+## Use in a JavaFX application
+
+Keep the GUI in a separate Maven project and add the dependency above. JavaFX
+is supplied by your application; SocialCard has no JavaFX dependency.
+
+- Populate the reader selector with `ReaderService.listReaders()` in a background task.
+- Start a monitor for the selected reader and implement `IReaderListener`.
+- Dispatch listener-driven UI updates with `Platform.runLater(...)`.
+- Run connection, reading and writing in a JavaFX `Task` or background executor.
+- Enable the write button only while a card is present and no write is running.
+- Close the old monitor when switching readers and close the active monitor when
+  the window closes. Each write can own its service in a try-with-resources block.
+
+Your GUI manages input, status and application lifecycle. SocialCard handles
+encoding, capacity checks, card communication and write verification.
 
 ## Errors and limitations
 
