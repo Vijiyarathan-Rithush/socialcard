@@ -1,33 +1,28 @@
 package com.rvi.application;
 
 import com.rvi.application.exception.NDefEncodingException;
+import com.rvi.domain.NDefContact;
+import com.rvi.domain.NDefContent;
 import com.rvi.domain.NDefMessage;
+import com.rvi.domain.NDefText;
+import com.rvi.domain.NDefUri;
+import com.rvi.domain.NDefWifi;
+import com.rvi.domain.WifiAuthentication;
+import com.rvi.domain.exception.NDefValueException;
 
 import java.io.ByteArrayOutputStream;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 
 public final class NDefEncoder
 {
-
-    private static final String HTTPS_SCHEME = "https";
-    private static final String HTTPS_URI_PREFIX = "https://";
-
     private static final int MAX_SHORT_PAYLOAD_LENGTH = 0xFF;
     private static final int SHORT_RECORD_MASK = 0x10;
-
-    private static final int TYPE_LENGTH = 0x01;
-    private static final int URI_TYPE = 0x55;
-    private static final int HTTPS_PREFIX = 0x04;
-
-    private static final int SINGLE_RECORD_HEADER = 0xD1;
-    private static final int FIRST_RECORD_HEADER = 0x91;
-    private static final int LAST_RECORD_HEADER = 0x51;
-    private static final int MIDDLE_RECORD_HEADER = 0x11;
-
-    private static final int URI_PREFIX_BYTES = 1;
+    private static final int MESSAGE_BEGIN_MASK = 0x80;
+    private static final int MESSAGE_END_MASK = 0x40;
 
     public NDefMessage encodeURI(final String url)
     {
@@ -46,89 +41,232 @@ public final class NDefEncoder
             throw new NDefEncodingException("URLs are missing");
         }
 
-        final ByteArrayOutputStream records = new ByteArrayOutputStream();
+        final List<NDefContent> contents = new ArrayList<>();
 
-        for (int index = 0; index < urls.size(); index++)
+        for (final String url : urls)
         {
-            final String url = urls.get(index);
-
             if (url == null || url.isBlank())
             {
                 throw new NDefEncodingException("URL is null or blank");
             }
 
-            final URI uri;
-
             try
             {
-                uri = URI.create(url.strip());
+                final NDefUri value = new NDefUri(url);
+
+                if (!"https".equalsIgnoreCase(URI.create(value.uri()).getScheme()))
+                {
+                    throw new NDefEncodingException("Expected a valid HTTPS URL");
+                }
+
+                contents.add(value);
             }
-            catch (IllegalArgumentException exception)
+            catch (NDefValueException exception)
             {
-                throw new NDefEncodingException("Invalid URI: " + url, exception);
+                throw new NDefEncodingException("Invalid HTTPS URL", exception);
+            }
+        }
+
+        return encode(contents);
+    }
+
+    public NDefMessage encode(final List<NDefContent> contents)
+    {
+        if (contents == null || contents.isEmpty())
+        {
+            throw new NDefEncodingException("NDEF contents are missing");
+        }
+
+        final ByteArrayOutputStream output = new ByteArrayOutputStream();
+
+        for (int index = 0; index < contents.size(); index++)
+        {
+            final NDefContent content = contents.get(index);
+
+            if (content == null)
+            {
+                throw new NDefEncodingException("NDEF content is missing");
             }
 
-            final byte[] urlBytes = getUrlBytes(uri);
-            final int payloadLength = urlBytes.length + URI_PREFIX_BYTES;
-            final boolean shortRecord = payloadLength <= MAX_SHORT_PAYLOAD_LENGTH;
-            int header = getRecordHeader(index, urls.size());
-
-            if (!shortRecord)
+            final EncodedValue value = switch (content)
             {
-                header &= ~SHORT_RECORD_MASK;
+                case NDefUri uri -> encodeUri(uri);
+                case NDefText text -> encodeText(text);
+                case NDefContact contact -> encodeContact(contact);
+                case NDefWifi wifi -> encodeWifi(wifi);
+            };
+
+            final boolean shortPayload = value.payload().length <= MAX_SHORT_PAYLOAD_LENGTH;
+            int header = value.typeNameFormat();
+
+            if (index == 0)
+            {
+                header |= MESSAGE_BEGIN_MASK;
             }
 
-            records.write(header);
-            records.write(TYPE_LENGTH);
-
-            if (shortRecord)
+            if (index == contents.size() - 1)
             {
-                records.write(payloadLength);
+                header |= MESSAGE_END_MASK;
+            }
+
+            if (shortPayload)
+            {
+                header |= SHORT_RECORD_MASK;
+            }
+
+            output.write(header);
+            output.write(value.type().length);
+
+            if (shortPayload)
+            {
+                output.write(value.payload().length);
             }
             else
             {
-                records.writeBytes(ByteBuffer.allocate(Integer.BYTES).putInt(payloadLength).array());
+                output.writeBytes(ByteBuffer.allocate(Integer.BYTES).putInt(value.payload().length).array());
             }
 
-            records.write(URI_TYPE);
-            records.write(HTTPS_PREFIX);
-            records.writeBytes(urlBytes);
+            output.writeBytes(value.type());
+            output.writeBytes(value.payload());
         }
 
-        return new NDefMessage(records.toByteArray());
+        return new NDefMessage(output.toByteArray());
     }
 
-    private static int getRecordHeader(final int index, final int recordCount)
+    private EncodedValue encodeUri(final NDefUri value)
     {
-        if (recordCount == 1)
+        final String uri = value.uri();
+        final String suffix;
+        final int prefix;
+
+        if (uri.regionMatches(true, 0, "https://", 0, 8))
         {
-            return SINGLE_RECORD_HEADER;
+            prefix = 0x04;
+            suffix = uri.substring(8);
+        }
+        else if (uri.regionMatches(true, 0, "http://", 0, 7))
+        {
+            prefix = 0x03;
+            suffix = uri.substring(7);
+        }
+        else
+        {
+            prefix = 0x00;
+            suffix = uri;
         }
 
-        if (index == 0)
-        {
-            return FIRST_RECORD_HEADER;
-        }
+        final ByteArrayOutputStream payload = new ByteArrayOutputStream();
+        payload.write(prefix);
+        payload.writeBytes(suffix.getBytes(StandardCharsets.UTF_8));
 
-        if (index == recordCount - 1)
-        {
-            return LAST_RECORD_HEADER;
-        }
-
-        return MIDDLE_RECORD_HEADER;
+        return new EncodedValue(0x01, new byte[] {0x55}, payload.toByteArray());
     }
 
-    private static byte[] getUrlBytes(final URI uri)
+    private EncodedValue encodeText(final NDefText value)
     {
-        if (!HTTPS_SCHEME.equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null || uri.getUserInfo() != null)
+        final byte[] language = value.language().getBytes(StandardCharsets.US_ASCII);
+        final ByteArrayOutputStream payload = new ByteArrayOutputStream();
+        payload.write(language.length);
+        payload.writeBytes(language);
+        payload.writeBytes(value.text().getBytes(StandardCharsets.UTF_8));
+
+        return new EncodedValue(0x01, new byte[] {0x54}, payload.toByteArray());
+    }
+
+    private EncodedValue encodeContact(final NDefContact value)
+    {
+        final StringBuilder text = new StringBuilder();
+        appendLine(text, "BEGIN:VCARD");
+        appendLine(text, "VERSION:4.0");
+        appendLine(text, "FN:" + escape(value.firstName() + " " + value.lastName()).strip());
+        appendLine(text, "N:" + escapeComponent(value.lastName()) + ";" + escapeComponent(value.firstName()) + ";;;");
+
+        if (!value.email().isEmpty())
         {
-            throw new NDefEncodingException("Expected a valid HTTPS URL");
+            appendLine(text, "EMAIL:" + escape(value.email()));
         }
 
-        final String asciiUrl = uri.toASCIIString();
-        final String uriSuffix = asciiUrl.substring(HTTPS_URI_PREFIX.length());
-        final byte[] urlBytes = uriSuffix.getBytes(StandardCharsets.UTF_8);
+        if (!value.phone().isEmpty())
+        {
+            appendLine(text, "TEL;VALUE=text:" + escape(value.phone()));
+        }
 
-        return urlBytes;
+        if (!value.website().isEmpty())
+        {
+            appendLine(text, "URL:" + value.website());
+        }
+
+        appendLine(text, "END:VCARD");
+
+        return new EncodedValue(0x02, "text/vcard".getBytes(StandardCharsets.US_ASCII), text.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
+    private String escape(final String value)
+    {
+        return value.replace("\\", "\\\\").replace("\r\n", "\n").replace("\r", "\n").replace("\n", "\\n").replace(",", "\\,");
+    }
+
+    private String escapeComponent(final String value)
+    {
+        return escape(value).replace(";", "\\;");
+    }
+
+    private void appendLine(final StringBuilder output, final String line)
+    {
+        int octets = 0;
+
+        for (final int codePoint : line.codePoints().toArray())
+        {
+            final String character = new String(Character.toChars(codePoint));
+            final int bytes = character.getBytes(StandardCharsets.UTF_8).length;
+
+            if (octets + bytes > 75)
+            {
+                output.append("\r\n ");
+                octets = 1;
+            }
+
+            output.append(character);
+            octets += bytes;
+        }
+
+        output.append("\r\n");
+    }
+
+    private EncodedValue encodeWifi(final NDefWifi value)
+    {
+        final ByteArrayOutputStream credential = new ByteArrayOutputStream();
+        attribute(credential, 0x1026, new byte[] {1});
+        attribute(credential, 0x1045, value.ssid().getBytes(StandardCharsets.UTF_8));
+
+        if (value.authentication() == WifiAuthentication.OPEN)
+        {
+            attribute(credential, 0x1003, new byte[] {0, 1});
+            attribute(credential, 0x100F, new byte[] {0, 1});
+        }
+        else
+        {
+            attribute(credential, 0x1003, new byte[] {0, 0x20});
+            attribute(credential, 0x100F, new byte[] {0, 8});
+        }
+
+        attribute(credential, 0x1027, value.password().getBytes(StandardCharsets.US_ASCII));
+        attribute(credential, 0x1020, new byte[] {(byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF});
+
+        final ByteArrayOutputStream payload = new ByteArrayOutputStream();
+        attribute(payload, 0x104A, new byte[] {0x10});
+        attribute(payload, 0x100E, credential.toByteArray());
+
+        return new EncodedValue(0x02, "application/vnd.wfa.wsc".getBytes(StandardCharsets.US_ASCII), payload.toByteArray());
+    }
+
+    private void attribute(final ByteArrayOutputStream output, final int type, final byte[] data)
+    {
+        output.writeBytes(ByteBuffer.allocate(4).putShort((short) type).putShort((short) data.length).array());
+        output.writeBytes(data);
+    }
+
+    private record EncodedValue(int typeNameFormat, byte[] type, byte[] payload)
+    {
     }
 }

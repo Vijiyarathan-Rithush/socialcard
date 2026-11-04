@@ -33,7 +33,8 @@ public final class ReaderRepository implements IReaderRepository
     private static final int SUCCESS_STATUS = 0x9000;
 
     private final CardChannel cardChannel;
-    private final TlvCodec tlvCodec = new TlvCodec();
+    private final TlvEncoder tlvEncoder = new TlvEncoder();
+    private final TlvDecoder tlvDecoder = new TlvDecoder();
 
     public ReaderRepository(final CardChannel cardChannel)
     {
@@ -52,7 +53,7 @@ public final class ReaderRepository implements IReaderRepository
     {
         final int capacity = readNdefCapacity(false);
         final byte[] firstPage = readPage(FIRST_USER_PAGE);
-        final int totalLength = tlvCodec.encodedLength(firstPage);
+        final int totalLength = tlvDecoder.encodedLength(firstPage);
         final int readLength = paddedLength(totalLength, capacity);
         final ByteArrayOutputStream output = new ByteArrayOutputStream(readLength);
         output.writeBytes(firstPage);
@@ -63,7 +64,7 @@ public final class ReaderRepository implements IReaderRepository
             output.writeBytes(readPage(page));
         }
 
-        return tlvCodec.decode(output.toByteArray());
+        return tlvDecoder.decode(output.toByteArray());
     }
 
     @Override
@@ -74,7 +75,7 @@ public final class ReaderRepository implements IReaderRepository
             throw new ReaderServiceException("NDEF message is missing");
         }
 
-        final byte[] data = tlvCodec.encode(message);
+        final byte[] data = tlvEncoder.encode(message);
         final int capacity = readNdefCapacity(true);
         final int paddedLength = paddedLength(data.length, capacity);
         final byte[] padded = Arrays.copyOf(data, paddedLength);

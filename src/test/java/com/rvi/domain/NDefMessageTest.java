@@ -70,7 +70,7 @@ public final class NDefMessageTest
     }
 
     @ParameterizedTest
-    @CsvSource({"0,0", "0,81", "0,145", "0,241", "0,193", "0,217", "0,210", "1,0", "1,2", "2,0", "2,6", "2,255", "3,84", "4,3"})
+    @CsvSource({"0,0", "0,81", "0,145", "0,241", "0,193", "0,217", "0,210", "1,0", "1,2", "2,0", "2,6", "2,255", "3,84", "4,255"})
     void rejectsCorruptedFields(int offset, int value)
     {
         byte[] data = singleMessage();

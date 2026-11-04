@@ -6,58 +6,12 @@ import com.rvi.domain.NDefMessage;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
-/** Handles the SocialCard layout: an NDEF TLV at offset zero followed by a terminator. */
-public final class TlvCodec
+public final class TlvDecoder
 {
     private static final int NDEF_TYPE = 0x03;
     private static final int EXTENDED_LENGTH = 0xFF;
     private static final int TERMINATOR = 0xFE;
     private static final int MAX_NDEF_LENGTH = 0xFFFE;
-
-    public byte[] encode(final NDefMessage message)
-    {
-        if (message == null)
-        {
-            throw new TlvException("NDEF message is missing");
-        }
-
-        final byte[] data = message.data();
-
-        if (data.length > MAX_NDEF_LENGTH)
-        {
-            throw new TlvException("NDEF message exceeds the supported TLV length");
-        }
-
-        final boolean extended = data.length >= EXTENDED_LENGTH;
-        final int overhead;
-
-        if (extended)
-        {
-            overhead = 5;
-        }
-        else
-        {
-            overhead = 3;
-        }
-
-        final ByteBuffer output = ByteBuffer.allocate(data.length + overhead);
-        output.put((byte) NDEF_TYPE);
-
-        if (extended)
-        {
-            output.put((byte) EXTENDED_LENGTH);
-            output.putShort((short) data.length);
-        }
-        else
-        {
-            output.put((byte) data.length);
-        }
-
-        output.put(data);
-        output.put((byte) TERMINATOR);
-
-        return output.array();
-    }
 
     public NDefMessage decode(final byte[] data)
     {
@@ -81,7 +35,6 @@ public final class TlvCodec
         return new NDefMessage(Arrays.copyOfRange(data, header.headerLength(), header.headerLength() + header.valueLength()));
     }
 
-    /** Returns the size including the terminator; only the complete header is needed. */
     public int encodedLength(final byte[] data)
     {
         return readHeader(data).totalLength();

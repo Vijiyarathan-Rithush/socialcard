@@ -1,8 +1,17 @@
 package com.rvi.application;
 
 import com.rvi.application.ReaderRepository;
+import com.rvi.application.creator.NDefWifiCreator;
+import com.rvi.application.creator.NDefContactCreator;
+import com.rvi.application.creator.NDefTextCreator;
+import com.rvi.application.creator.NDefUriCreator;
+import com.rvi.application.creator.NDefMessageCreator;
 import com.rvi.application.NDefEncoder;
 import com.rvi.domain.NDefMessage;
+import com.rvi.domain.NDefWifi;
+import com.rvi.domain.NDefContact;
+import com.rvi.domain.NDefText;
+import com.rvi.domain.NDefUri;
 import com.rvi.domain.exception.NDefMessageException;
 import com.rvi.application.exception.CardCapacityException;
 import com.rvi.application.exception.ReaderServiceException;
@@ -40,7 +49,7 @@ class ReaderRepositoryTest
     void readsUsingExpectedCommands() throws CardException
     {
         byte[] expectedData = message().data();
-        channel.load(new TlvCodec().encode(message()));
+        channel.load(new TlvEncoder().encode(message()));
 
         byte[] actualData = repository.read().data();
 
@@ -63,7 +72,7 @@ class ReaderRepositoryTest
     {
         NDefMessage input = message();
         byte[] expectedInitialPage = {3, 0, (byte) 0xFE, 0};
-        byte[] encoded = new TlvCodec().encode(input);
+        byte[] encoded = new TlvEncoder().encode(input);
         byte[] expectedFinalPage = Arrays.copyOf(encoded, 4);
 
         repository.write(input);
@@ -208,7 +217,7 @@ class ReaderRepositoryTest
     @Test
     void rejectsPartialRead()
     {
-        channel.load(new TlvCodec().encode(message()));
+        channel.load(new TlvEncoder().encode(message()));
         channel.failAt = 2;
 
         assertThrows(ReaderServiceException.class, repository::read);
@@ -239,7 +248,7 @@ class ReaderRepositoryTest
     @Test
     void rejectsCorruptedStoredMessage()
     {
-        final byte[] encoded = new TlvCodec().encode(message());
+        final byte[] encoded = new TlvEncoder().encode(message());
         encoded[2] = 0;
         channel.load(encoded);
 
@@ -291,7 +300,7 @@ class ReaderRepositoryTest
     void allowsReadingAReadOnlyTag() throws CardException
     {
         channel.memory[15] = 0x0F;
-        channel.load(new TlvCodec().encode(message()));
+        channel.load(new TlvEncoder().encode(message()));
 
         assertArrayEquals(message().data(), repository.read().data());
     }
@@ -304,6 +313,22 @@ class ReaderRepositoryTest
 
         assertThrows(ReaderServiceException.class, () -> repository.write(message()));
         assertEquals(1, channel.commands.size());
+    }
+
+    @Test
+    void roundTripsMixedCreatorContentWithExtendedTlv() throws CardException
+    {
+        final NDefUri uri = new NDefUriCreator().uri("tel:+41791234567").build();
+        final NDefText text = new NDefTextCreator().text("Hallo".repeat(30)).build();
+        final NDefContact contact = new NDefContactCreator().firstName("Rithush").build();
+        final NDefWifi wifi = new NDefWifiCreator().ssid("WLAN").password("password").build();
+        final NDefMessage message = new NDefMessageCreator().add(uri).add(text).add(contact).add(wifi).build();
+
+        assertTrue(message.data().length >= 255);
+        repository.write(message);
+
+        assertEquals(0xFF, Byte.toUnsignedInt(channel.memory[17]));
+        assertArrayEquals(message.data(), repository.read().data());
     }
 
     private static class FakeChannel extends CardChannel

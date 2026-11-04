@@ -11,9 +11,10 @@ import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-final class TlvCodecTest
+final class TlvEncoderDecoderTest
 {
-    private final TlvCodec codec = new TlvCodec();
+    private final TlvEncoder tlvEncoder = new TlvEncoder();
+    private final TlvDecoder tlvDecoder = new TlvDecoder();
     private final NDefEncoder encoder = new NDefEncoder();
 
     @ParameterizedTest
@@ -21,15 +22,15 @@ final class TlvCodecTest
     void selectsTlvLengthIndependentlyOfTheShortRecordFlag(final int suffixLength, final int ndefLength, final int overhead)
     {
         final NDefMessage message = encoder.encodeURI("https://a.ch/" + "x".repeat(suffixLength - 5));
-        final byte[] encoded = codec.encode(message);
+        final byte[] encoded = tlvEncoder.encode(message);
 
         assertEquals(ndefLength, message.data().length);
         assertEquals(ndefLength + overhead, encoded.length);
         assertEquals(0xD1, Byte.toUnsignedInt(message.data()[0]));
         assertEquals(3, encoded[0]);
         assertEquals((byte) 0xFE, encoded[encoded.length - 1]);
-        assertEquals(encoded.length, codec.encodedLength(Arrays.copyOf(encoded, 4)));
-        assertArrayEquals(message.data(), codec.decode(encoded).data());
+        assertEquals(encoded.length, tlvDecoder.encodedLength(Arrays.copyOf(encoded, 4)));
+        assertArrayEquals(message.data(), tlvDecoder.decode(encoded).data());
 
         if (overhead == 5)
         {
@@ -46,43 +47,43 @@ final class TlvCodecTest
     void roundTripsLongRecordsAndIgnoresPagePadding()
     {
         final NDefMessage message = encoder.encodeURI("https://a.ch/" + "x".repeat(300));
-        final byte[] encoded = codec.encode(message);
+        final byte[] encoded = tlvEncoder.encode(message);
         final byte[] padded = Arrays.copyOf(encoded, encoded.length + 3);
 
-        assertArrayEquals(message.data(), codec.decode(padded).data());
+        assertArrayEquals(message.data(), tlvDecoder.decode(padded).data());
     }
 
     @Test
     void rejectsEveryTruncatedTlvPrefix()
     {
-        final byte[] encoded = codec.encode(encoder.encodeURI("https://a.ch/" + "x".repeat(300)));
+        final byte[] encoded = tlvEncoder.encode(encoder.encodeURI("https://a.ch/" + "x".repeat(300)));
 
         for (int length = 0; length < encoded.length; length++)
         {
             final byte[] truncated = Arrays.copyOf(encoded, length);
-            assertThrows(TlvException.class, () -> codec.decode(truncated));
+            assertThrows(TlvException.class, () -> tlvDecoder.decode(truncated));
         }
     }
 
     @Test
     void rejectsMissingInputsAndEmptyTlv()
     {
-        assertThrows(TlvException.class, () -> codec.encode(null));
-        assertThrows(TlvException.class, () -> codec.decode(null));
-        assertThrows(TlvException.class, () -> codec.decode(new byte[] {3, 0, (byte) 0xFE}));
+        assertThrows(TlvException.class, () -> tlvEncoder.encode(null));
+        assertThrows(TlvException.class, () -> tlvDecoder.decode(null));
+        assertThrows(TlvException.class, () -> tlvDecoder.decode(new byte[] {3, 0, (byte) 0xFE}));
     }
 
     @Test
     void rejectsInvalidHeadersAndMissingTerminator()
     {
-        assertThrows(TlvException.class, () -> codec.encodedLength(new byte[] {0, 1}));
-        assertThrows(TlvException.class, () -> codec.encodedLength(new byte[] {3, (byte) 0xFF, 0, (byte) 0xFE}));
-        assertThrows(TlvException.class, () -> codec.encodedLength(new byte[] {3, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF}));
+        assertThrows(TlvException.class, () -> tlvDecoder.encodedLength(new byte[] {0, 1}));
+        assertThrows(TlvException.class, () -> tlvDecoder.encodedLength(new byte[] {3, (byte) 0xFF, 0, (byte) 0xFE}));
+        assertThrows(TlvException.class, () -> tlvDecoder.encodedLength(new byte[] {3, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF}));
 
-        final byte[] encoded = codec.encode(encoder.encodeURI("https://a.ch"));
+        final byte[] encoded = tlvEncoder.encode(encoder.encodeURI("https://a.ch"));
         encoded[encoded.length - 1] = 0;
 
-        assertThrows(TlvException.class, () -> codec.decode(encoded));
+        assertThrows(TlvException.class, () -> tlvDecoder.decode(encoded));
     }
 
     @Test
@@ -92,7 +93,7 @@ final class TlvCodecTest
         final NDefMessage oversized = encoder.encodeURI("https://a.ch/" + "x".repeat(65522));
 
         assertEquals(0xFFFE, maximum.data().length);
-        assertArrayEquals(maximum.data(), codec.decode(codec.encode(maximum)).data());
-        assertThrows(TlvException.class, () -> codec.encode(oversized));
+        assertArrayEquals(maximum.data(), tlvDecoder.decode(tlvEncoder.encode(maximum)).data());
+        assertThrows(TlvException.class, () -> tlvEncoder.encode(oversized));
     }
 }
