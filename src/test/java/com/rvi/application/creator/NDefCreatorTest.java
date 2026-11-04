@@ -25,7 +25,7 @@ final class NDefCreatorTest
         final NDefText first = creator.build();
         final NDefText second = creator.text("Hello").language("en").build();
 
-        assertEquals(new NDefText("Hallo", "de"), first);
+        assertEquals(new NDefText("Hallo", "en"), first);
         assertEquals(new NDefText("Hello", "en"), second);
     }
 

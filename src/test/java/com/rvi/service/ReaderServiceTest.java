@@ -3,6 +3,7 @@ package com.rvi.service;
 import com.rvi.service.ReaderService;
 import com.rvi.application.IReaderRepository;
 import com.rvi.application.exception.NDefEncodingException;
+import com.rvi.application.exception.ReaderServiceException;
 import com.rvi.domain.NDefMessage;
 import org.junit.jupiter.api.Test;
 
@@ -24,7 +25,7 @@ class ReaderServiceTest
     @Test
     void rejectsMissingRepository()
     {
-        assertThrows(NullPointerException.class, () -> new ReaderService(null));
+        assertThrows(ReaderServiceException.class, () -> new ReaderService(null));
     }
 
     @Test
@@ -100,9 +101,9 @@ class ReaderServiceTest
         CardException expected = new CardException("Reader disconnected");
         repository.failure = expected;
 
-        CardException actual = assertThrows(CardException.class, service::read);
+        ReaderServiceException actual = assertThrows(ReaderServiceException.class, service::read);
 
-        assertSame(expected, actual);
+        assertSame(expected, actual.getCause());
         assertEquals(1, repository.reads);
     }
 
@@ -113,11 +114,26 @@ class ReaderServiceTest
         CardException expected = new CardException("Card removed");
         repository.failure = expected;
 
-        CardException actual = assertThrows(CardException.class, () -> service.write(input));
+        ReaderServiceException actual = assertThrows(ReaderServiceException.class, () -> service.write(input));
 
-        assertSame(expected, actual);
+        assertSame(expected, actual.getCause());
         assertEquals(1, repository.writes);
         assertEquals(0, repository.reads);
+    }
+
+    @Test
+    void preservesAnExternallyManagedRepository()
+    {
+        final NDefMessage expected = message();
+        repository.result = expected;
+
+        assertThrows(ReaderServiceException.class, service::connect);
+        service.disconnect();
+        service.close();
+
+        assertSame(expected, service.read());
+        assertEquals(1, repository.reads);
+        assertEquals(0, repository.writes);
     }
 
     private static class StubRepository implements IReaderRepository

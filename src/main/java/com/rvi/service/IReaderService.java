@@ -2,14 +2,17 @@ package com.rvi.service;
 
 import com.rvi.domain.NDefMessage;
 
-import javax.smartcardio.CardException;
 import java.util.List;
 
-public interface IReaderService
+public interface IReaderService extends AutoCloseable
 {
+    void connect();
+    void disconnect();
     NDefMessage encodeURI(String message);
-    NDefMessage read() throws CardException;
+    NDefMessage encodeURIs(List<String> urls);
+    NDefMessage read();
+    void write(NDefMessage message);
 
-    public void write(NDefMessage message) throws CardException;
-    public NDefMessage encodeURIs(final List<String> urls);
+    @Override
+    void close();
 }

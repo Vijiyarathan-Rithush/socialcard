@@ -5,7 +5,7 @@ import com.rvi.domain.NDefText;
 public final class NDefTextCreator
 {
     private String text;
-    private String language = "de";
+    private String language = "en";
 
     public NDefTextCreator text(final String text)
     {

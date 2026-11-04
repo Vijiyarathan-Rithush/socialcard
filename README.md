@@ -73,7 +73,7 @@ Edit `createMessage()` in `src/main/java/com/rvi/Main.java`:
 
 ```java
 final NDefUri website = new NDefUriCreator().uri("https://rithush.dev").build();
-final NDefText text = new NDefTextCreator().text("Hallo Rithush").language("de").build();
+final NDefText text = new NDefTextCreator().text("Hello Rithush").language("en").build();
 final NDefMessage message = new NDefMessageCreator().add(website).add(text).build();
 ```
 
@@ -98,14 +98,14 @@ Each fluent builder is a separate class in `com.rvi.application.creator`.
 
 ```java
 final NDefUri phone = new NDefUriCreator().uri("tel:+41791234567").build();
-final NDefText text = new NDefTextCreator().text("Hallo Rithush").language("de").build();
+final NDefText text = new NDefTextCreator().text("Hello Rithush").language("en").build();
 final NDefContact contact = new NDefContactCreator().firstName("Rithush").lastName("Vijiyarathan").email("hello@rithush.dev").phone("+41791234567").website("https://rithush.dev").build();
 final NDefWifi wifi = new NDefWifiCreator().ssid("Guest").authentication(WifiAuthentication.WPA2_PERSONAL).encryption(WifiEncryption.AES).password("example-password").build();
 final NDefMessage message = new NDefMessageCreator().add(phone).add(text).add(contact).build();
 final NDefMessage wifiMessage = new NDefMessageCreator().add(wifi).build();
 ```
 
-`NDefTextCreator` defaults to language `de`. `NDefWifiCreator` defaults to WPA2-Personal
+`NDefTextCreator` defaults to language `en`. `NDefWifiCreator` defaults to WPA2-Personal
 with AES; open networks require `OPEN` and `NONE` without a password.
 Support for automatically acting on a tag depends on the phone and reading app.
 Wi-Fi credentials are stored on the tag as readable data.
@@ -122,9 +122,56 @@ final NDefMessage single = encoder.encodeURI("https://github.com/Vijiyarathan-Ri
 final NDefMessage multiple = encoder.encodeURIs(List.of("https://github.com/Vijiyarathan-Rithush", "https://www.youtube.com/"));
 ```
 
-### Write and read a tag
+### Connect, write and read through the service
 
-With an initialized `IReaderService` and a connected NFC tag:
+Place a card on the reader before calling `connect()`. The service selects the first
+reader by default, connects to the card and creates the repository internally.
+No terminal, channel, listener, monitor or scanner is needed for a one-shot operation.
+
+```java
+try (final IReaderService service = ReaderService.create())
+{
+    service.connect();
+    service.write(message);
+
+    final NDefMessage stored = service.read();
+}
+```
+
+The factory methods are `ReaderService.create()` for the first reader and
+`ReaderService.create("Exact Reader Name")` for a named reader. Creating a service
+does not contact hardware. `new ReaderService()` is also supported.
+
+`connect()` does not wait for a card: a missing reader or card raises
+`ReaderServiceException`. Calling `connect()` twice without disconnecting also fails.
+`disconnect()` releases an owned card connection and can be called repeatedly.
+`close()` calls `disconnect()` automatically, including when the body throws.
+After disconnecting, the service can connect again.
+
+You can also manage the lifetime explicitly:
+
+```java
+final IReaderService service = ReaderService.create();
+
+try
+{
+    service.connect();
+    service.write(message);
+}
+finally
+{
+    service.disconnect();
+}
+```
+
+The existing repository-taking constructor remains available for externally managed
+connections, including `ReaderListener`. In that mode the caller owns the connection:
+`connect()` is unavailable, while `disconnect()` and `close()` do not close it.
+The monitor remains optional for applications that react to card insertion and removal.
+
+### Existing HTTPS methods
+
+With a connected `IReaderService`:
 
 ```java
 final NDefMessage message = service.encodeURIs(List.of("https://github.com/Vijiyarathan-Rithush", "https://www.youtube.com/"));
@@ -142,7 +189,7 @@ final NDefMessage stored = service.read();
 | `com.rvi.application` | NDEF encoding, reader repository and APDU communication |
 | `com.rvi.application.exception` | Encoding, TLV and reader exceptions |
 | `com.rvi.application.creator` | Separate fluent builders for values and messages |
-| `com.rvi.service` | Service interface and coordination of encoding and tag access |
+| `com.rvi.service` | Service factories, connection lifetime, encoding and tag access |
 | `com.rvi.domain` | NDEF message representation and validation |
 | `com.rvi.domain.exception` | NDEF message validation exceptions |
 
@@ -156,8 +203,9 @@ the TLV wrapper; `ReaderRepository` applies page padding only when writing.
 
 Repository communication errors use `ReaderServiceException`, preserving
 the original cause. Capacity errors use `CardCapacityException`, and TLV
-format errors use `TlvException`. Existing checked `CardException` declarations
-remain on the interfaces for source compatibility.
+format errors use `TlvException`. `IReaderRepository` retains checked
+`CardException` declarations. The service API wraps checked card failures in
+`ReaderServiceException` and preserves the original cause.
 
 ## Current Limitations
 
@@ -169,7 +217,7 @@ remain on the interfaces for source compatibility.
 - Physical memory access remains configured for NTAG215 pages 4 through 129
 - The capability container limits the NDEF area; a factory NTAG215 advertises 496 bytes, including TLV overhead
 - Writing is not atomic; removing the tag during a write can leave incomplete content
-- Reader selection and links are configured in code
+- Reader selection and message content are configured through the API
 - Display and handling of multiple links depend on the receiving device and app
 
 ## Author
