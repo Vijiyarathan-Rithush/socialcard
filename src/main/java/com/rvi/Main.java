@@ -15,8 +15,7 @@ public class Main
     private static final Logger LOGGER = LoggerFactory.getLogger(Main.class);
     public static void main(String[] args) throws Exception
     {
-        final List<CardTerminal> terminals =
-                TerminalFactory.getDefault().terminals().list();
+        final List<CardTerminal> terminals = TerminalFactory.getDefault().terminals().list();
 
         if (terminals.isEmpty())
         {
@@ -24,8 +23,7 @@ public class Main
             return;
         }
 
-        final NDefMessage message = new NDefEncoder().encodeURI(
-                "https://youtube.com");
+        final NDefMessage message = new NDefEncoder().encodeURI("https://youtube.com");
 
         final IReaderListener listener = new ReaderListener(message);
 

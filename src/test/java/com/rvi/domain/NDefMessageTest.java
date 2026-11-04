@@ -16,18 +16,16 @@ public final class NDefMessageTest
     private byte[] singleMessage()
     {
         return new byte[] {
-                3, 9, (byte) 0xD1, 1, 5, 0x55, 4,
-                0x61, 0x2E, 0x63, 0x68, (byte) 0xFE
+                (byte) 0xD1, 1, 5, 0x55, 4,
+                0x61, 0x2E, 0x63, 0x68
         };
     }
 
     private byte[] multipleMessages()
     {
         return new byte[] {
-                3, 18,
                 (byte) 0x91, 1, 5, 0x55, 4, 0x61, 0x2E, 0x63, 0x68,
-                0x51, 1, 5, 0x55, 4, 0x62, 0x2E, 0x63, 0x68,
-                (byte) 0xFE
+                0x51, 1, 5, 0x55, 4, 0x62, 0x2E, 0x63, 0x68
         };
     }
 
@@ -72,26 +70,7 @@ public final class NDefMessageTest
     }
 
     @ParameterizedTest
-    @CsvSource({
-            "0,0",
-            "1,8",
-            "1,10",
-            "1,255",
-            "2,81",
-            "2,145",
-            "2,241",
-            "2,193",
-            "2,217",
-            "2,210",
-            "3,0",
-            "3,2",
-            "4,0",
-            "4,6",
-            "4,255",
-            "5,84",
-            "6,3",
-            "11,0"
-    })
+    @CsvSource({"0,0", "0,81", "0,145", "0,241", "0,193", "0,217", "0,210", "1,0", "1,2", "2,0", "2,6", "2,255", "3,84", "4,3"})
     void rejectsCorruptedFields(int offset, int value)
     {
         byte[] data = singleMessage();
@@ -101,7 +80,7 @@ public final class NDefMessageTest
     }
 
     @ParameterizedTest
-    @CsvSource({"2,209", "11,209", "11,17"})
+    @CsvSource({"0,209", "9,209", "9,17"})
     void rejectsInvalidRecordFlags(int offset, int header)
     {
         byte[] data = multipleMessages();
@@ -113,13 +92,29 @@ public final class NDefMessageTest
     @Test
     void rejectsIncompleteLastRecord()
     {
-        byte[] data = {
-                3, 11,
-                (byte) 0x91, 1, 5, 0x55, 4, 0x61, 0x2E, 0x63, 0x68,
-                0x51, 1, (byte) 0xFE
-        };
+        byte[] data = {(byte) 0x91, 1, 5, 0x55, 4, 0x61, 0x2E, 0x63, 0x68, 0x51, 1};
 
         assertThrows(NDefMessageException.class, () -> new NDefMessage(data));
+    }
+
+    @Test
+    void rejectsUnsignedLongLengthAboveAvailableBytes()
+    {
+        final byte[] data = {(byte) 0xC1, 1, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, 0x55, 4};
+
+        assertThrows(NDefMessageException.class, () -> new NDefMessage(data));
+    }
+
+    @Test
+    void rejectsEveryTruncatedLongRecordPrefix()
+    {
+        final byte[] data = new com.rvi.application.NDefEncoder().encodeURI("https://a.ch/" + "x".repeat(250)).data();
+
+        for (int length = 0; length < data.length; length++)
+        {
+            final byte[] truncated = Arrays.copyOf(data, length);
+            assertThrows(NDefMessageException.class, () -> new NDefMessage(truncated));
+        }
     }
 
     @Test
@@ -159,10 +154,7 @@ public final class NDefMessageTest
             byte[] data = new byte[8 + random.nextInt(250)];
             random.nextBytes(data);
 
-            data[0] = 3;
-            data[1] = (byte) (data.length - 3);
-            data[2] = 0;
-            data[data.length - 1] = (byte) 0xFE;
+            data[0] = 0;
 
             assertThrows(NDefMessageException.class, () -> new NDefMessage(data));
         }

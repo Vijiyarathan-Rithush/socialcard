@@ -4,6 +4,9 @@ import com.rvi.application.ReaderRepository;
 import com.rvi.application.NDefEncoder;
 import com.rvi.domain.NDefMessage;
 import com.rvi.domain.exception.NDefMessageException;
+import com.rvi.application.exception.CardCapacityException;
+import com.rvi.application.exception.ReaderServiceException;
+import com.rvi.application.exception.TlvException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -24,34 +27,32 @@ class ReaderRepositoryTest
 
     private NDefMessage message()
     {
-        return new NDefMessage(new byte[] {
-                3, 9, (byte) 0xD1, 1, 5, 0x55, 4,
-                0x61, 0x2E, 0x63, 0x68, (byte) 0xFE
-        });
+        return new NDefMessage(new byte[] {(byte) 0xD1, 1, 5, 0x55, 4, 0x61, 0x2E, 0x63, 0x68});
     }
 
     @Test
     void rejectsNullChannel()
     {
-        assertThrows(NullPointerException.class, () -> new ReaderRepository(null));
+        assertThrows(ReaderServiceException.class, () -> new ReaderRepository(null));
     }
 
     @Test
     void readsUsingExpectedCommands() throws CardException
     {
         byte[] expectedData = message().data();
-        channel.load(expectedData);
+        channel.load(new TlvCodec().encode(message()));
 
         byte[] actualData = repository.read().data();
 
         assertArrayEquals(expectedData, actualData);
-        assertEquals(3, channel.commands.size());
+        assertEquals(4, channel.commands.size());
+        assertEquals(3, channel.commands.getFirst().getP2());
 
         for (int index = 0; index < 3; index++)
         {
             byte page = (byte) (4 + index);
             byte[] expectedCommand = {(byte) 0xFF, (byte) 0xB0, 0, page, 4};
-            byte[] actualCommand = channel.commands.get(index).getBytes();
+            byte[] actualCommand = channel.commands.get(index + 1).getBytes();
 
             assertArrayEquals(expectedCommand, actualCommand);
         }
@@ -62,14 +63,15 @@ class ReaderRepositoryTest
     {
         NDefMessage input = message();
         byte[] expectedInitialPage = {3, 0, (byte) 0xFE, 0};
-        byte[] expectedFinalPage = Arrays.copyOf(input.data(), 4);
+        byte[] encoded = new TlvCodec().encode(input);
+        byte[] expectedFinalPage = Arrays.copyOf(encoded, 4);
 
         repository.write(input);
 
-        assertEquals(7, channel.commands.size());
+        assertEquals(9, channel.commands.size());
 
-        List<CommandAPDU> writeCommands = channel.commands.subList(0, 4);
-        List<CommandAPDU> readCommands = channel.commands.subList(4, 7);
+        List<CommandAPDU> writeCommands = channel.commands.subList(1, 5);
+        List<CommandAPDU> readCommands = channel.commands.subList(5, 9);
         List<Integer> actualPages = writeCommands.stream().map(CommandAPDU::getP2).toList();
         byte[] actualInitialPage = writeCommands.getFirst().getData();
         byte[] actualFinalPage = writeCommands.getLast().getData();
@@ -78,7 +80,7 @@ class ReaderRepositoryTest
         assertEquals(List.of(4, 5, 6, 4), actualPages);
         assertArrayEquals(expectedInitialPage, actualInitialPage);
         assertArrayEquals(expectedFinalPage, actualFinalPage);
-        assertArrayEquals(input.data(), actualStoredData);
+        assertArrayEquals(encoded, actualStoredData);
 
         for (CommandAPDU command : writeCommands)
         {
@@ -99,11 +101,11 @@ class ReaderRepositoryTest
     {
         NDefMessage input = new NDefEncoder().encodeURI("https://a.ch/x");
         byte[] expectedLastPage = {0x78, (byte) 0xFE, 0, 0};
-        Arrays.fill(channel.memory, (byte) 0x7F);
+        Arrays.fill(channel.memory, 16, channel.memory.length, (byte) 0x7F);
 
         repository.write(input);
 
-        CommandAPDU lastPageCommand = channel.commands.get(3);
+        CommandAPDU lastPageCommand = channel.commands.get(4);
         byte[] actualLastPage = lastPageCommand.getData();
         byte[] actualMessage = repository.read().data();
 
@@ -114,7 +116,7 @@ class ReaderRepositoryTest
     }
 
     @Test
-    void handlesMaximumMessageLength() throws CardException
+    void handlesShortTlvNearTheLengthBoundary() throws CardException
     {
         String url = "https://a.ch/" + "a".repeat(244);
         NDefMessage input = new NDefEncoder().encodeURI(url);
@@ -131,14 +133,14 @@ class ReaderRepositoryTest
         {
             int page = command.getP2();
 
-            assertTrue(page >= 4 && page <= 129);
+            assertTrue(page >= 3 && page <= 127);
         }
     }
 
     @Test
     void rejectsNullBeforeCommunication()
     {
-        assertThrows(NullPointerException.class, () -> repository.write(null));
+        assertThrows(ReaderServiceException.class, () -> repository.write(null));
         assertTrue(channel.commands.isEmpty());
     }
 
@@ -149,8 +151,8 @@ class ReaderRepositoryTest
         byte[] firstPage = {(byte) type, (byte) length, 0, 0};
         channel.load(firstPage);
 
-        assertThrows(CardException.class, repository::read);
-        assertEquals(1, channel.commands.size());
+        assertThrows(TlvException.class, repository::read);
+        assertTrue(channel.commands.size() <= 2);
     }
 
     @ParameterizedTest
@@ -159,7 +161,7 @@ class ReaderRepositoryTest
     {
         channel.readLength = length;
 
-        assertThrows(CardException.class, repository::read);
+        assertThrows(ReaderServiceException.class, repository::read);
         assertEquals(1, channel.commands.size());
     }
 
@@ -170,21 +172,21 @@ class ReaderRepositoryTest
         channel.failAt = 1;
         channel.status = status;
 
-        assertThrows(CardException.class, repository::read);
+        assertThrows(ReaderServiceException.class, repository::read);
         assertEquals(1, channel.commands.size());
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {1, 2, 4})
+    @ValueSource(ints = {2, 3, 5})
     void stopsOnWriteStatusFailure(int position)
     {
         NDefMessage input = message();
         channel.failAt = position;
 
-        assertThrows(CardException.class, () -> repository.write(input));
+        assertThrows(ReaderServiceException.class, () -> repository.write(input));
         assertEquals(position, channel.commands.size());
 
-        for (CommandAPDU command : channel.commands)
+        for (CommandAPDU command : channel.commands.subList(1, channel.commands.size()))
         {
             assertEquals(0xD6, command.getINS());
         }
@@ -197,19 +199,19 @@ class ReaderRepositoryTest
         CardException expected = channel.disconnection;
         channel.disconnectAt = 2;
 
-        CardException actual = assertThrows(CardException.class, () -> repository.write(input));
+        ReaderServiceException actual = assertThrows(ReaderServiceException.class, () -> repository.write(input));
 
-        assertSame(expected, actual);
+        assertSame(expected, actual.getCause());
         assertEquals(2, channel.commands.size());
     }
 
     @Test
     void rejectsPartialRead()
     {
-        channel.load(message().data());
+        channel.load(new TlvCodec().encode(message()));
         channel.failAt = 2;
 
-        assertThrows(CardException.class, repository::read);
+        assertThrows(ReaderServiceException.class, repository::read);
         assertEquals(2, channel.commands.size());
     }
 
@@ -217,10 +219,10 @@ class ReaderRepositoryTest
     void failsWhenVerificationCannotRead()
     {
         NDefMessage input = message();
-        channel.failAt = 5;
+        channel.failAt = 6;
 
-        assertThrows(CardException.class, () -> repository.write(input));
-        assertEquals(5, channel.commands.size());
+        assertThrows(ReaderServiceException.class, () -> repository.write(input));
+        assertEquals(6, channel.commands.size());
     }
 
     @Test
@@ -229,7 +231,7 @@ class ReaderRepositoryTest
         NDefMessage input = message();
         channel.corrupt = true;
 
-        CardException actual = assertThrows(CardException.class, () -> repository.write(input));
+        ReaderServiceException actual = assertThrows(ReaderServiceException.class, () -> repository.write(input));
 
         assertEquals("Verification failed", actual.getMessage());
     }
@@ -237,11 +239,71 @@ class ReaderRepositoryTest
     @Test
     void rejectsCorruptedStoredMessage()
     {
-        byte[] data = message().data();
-        data[11] = 0;
-        channel.load(data);
+        final byte[] encoded = new TlvCodec().encode(message());
+        encoded[2] = 0;
+        channel.load(encoded);
 
         assertThrows(NDefMessageException.class, repository::read);
+    }
+
+    @Test
+    void roundTripsTheLargestMessageWithTerminator() throws CardException
+    {
+        final NDefMessage input = new NDefEncoder().encodeURI("https://a.ch/" + "x".repeat(478));
+
+        assertEquals(491, input.data().length);
+        repository.write(input);
+
+        assertArrayEquals(input.data(), repository.read().data());
+        assertEquals(127, channel.commands.stream().mapToInt(CommandAPDU::getP2).max().orElseThrow());
+    }
+
+    @Test
+    void rejectsOverflowBeforeAnyWrite()
+    {
+        final NDefMessage input = new NDefEncoder().encodeURI("https://a.ch/" + "x".repeat(479));
+
+        assertThrows(CardCapacityException.class, () -> repository.write(input));
+        assertEquals(1, channel.commands.size());
+        assertEquals(0xB0, channel.commands.getFirst().getINS());
+    }
+
+    @Test
+    void rejectsOversizedStoredLengthBeforeReadingTheBody()
+    {
+        channel.load(new byte[] {3, (byte) 0xFF, 1, (byte) 0xF4});
+
+        assertThrows(CardCapacityException.class, repository::read);
+        assertEquals(2, channel.commands.size());
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0x0F, 0x01, 0xF0})
+    void rejectsRestrictedAccessBeforeWriting(final int access)
+    {
+        channel.memory[15] = (byte) access;
+
+        assertThrows(ReaderServiceException.class, () -> repository.write(message()));
+        assertEquals(1, channel.commands.size());
+    }
+
+    @Test
+    void allowsReadingAReadOnlyTag() throws CardException
+    {
+        channel.memory[15] = 0x0F;
+        channel.load(new TlvCodec().encode(message()));
+
+        assertArrayEquals(message().data(), repository.read().data());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"12,0", "13,32", "14,0", "14,109"})
+    void rejectsInvalidCapabilityContainer(final int offset, final int value)
+    {
+        channel.memory[offset] = (byte) value;
+
+        assertThrows(ReaderServiceException.class, () -> repository.write(message()));
+        assertEquals(1, channel.commands.size());
     }
 
     private static class FakeChannel extends CardChannel
@@ -255,6 +317,13 @@ class ReaderRepositoryTest
         private int status = 0x6982;
         private int readLength = 4;
         private boolean corrupt;
+
+        FakeChannel()
+        {
+            memory[12] = (byte) 0xE1;
+            memory[13] = 0x10;
+            memory[14] = 0x3E;
+        }
 
         void load(byte[] data)
         {

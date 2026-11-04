@@ -6,4 +6,9 @@ public class ReaderServiceException extends RuntimeException
     {
         super(message);
     }
+
+    public ReaderServiceException(final String message, final Throwable cause)
+    {
+        super(message, cause);
+    }
 }

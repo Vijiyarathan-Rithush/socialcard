@@ -6,4 +6,9 @@ public class NDefEncodingException extends RuntimeException
     {
         super(message);
     }
+
+    public NDefEncodingException(final String message, final Throwable cause)
+    {
+        super(message, cause);
+    }
 }

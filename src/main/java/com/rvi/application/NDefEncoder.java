@@ -5,20 +5,18 @@ import com.rvi.domain.NDefMessage;
 
 import java.io.ByteArrayOutputStream;
 import java.net.URI;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 public final class NDefEncoder
 {
 
-    private static final int NDEF_TLV = 0x03;
-    private static final int TERMINATOR = 0xFE;
-
     private static final String HTTPS_SCHEME = "https";
     private static final String HTTPS_URI_PREFIX = "https://";
 
-    private static final int MAX_URI_SUFFIX_BYTES = 249;
-    private static final int MAX_SHORT_NDEF_LENGTH = 254;
+    private static final int MAX_SHORT_PAYLOAD_LENGTH = 0xFF;
+    private static final int SHORT_RECORD_MASK = 0x10;
 
     private static final int TYPE_LENGTH = 0x01;
     private static final int URI_TYPE = 0x55;
@@ -30,7 +28,6 @@ public final class NDefEncoder
     private static final int MIDDLE_RECORD_HEADER = 0x11;
 
     private static final int URI_PREFIX_BYTES = 1;
-    private static final int URI_RECORD_OVERHEAD = 4;
 
     public NDefMessage encodeURI(final String url)
     {
@@ -68,34 +65,37 @@ public final class NDefEncoder
             }
             catch (IllegalArgumentException exception)
             {
-                throw new NDefEncodingException("Invalid URI: " + url);
+                throw new NDefEncodingException("Invalid URI: " + url, exception);
             }
 
             final byte[] urlBytes = getUrlBytes(uri);
             final int payloadLength = urlBytes.length + URI_PREFIX_BYTES;
-            final int recordLength = payloadLength + URI_RECORD_OVERHEAD;
+            final boolean shortRecord = payloadLength <= MAX_SHORT_PAYLOAD_LENGTH;
+            int header = getRecordHeader(index, urls.size());
 
-            if (records.size() + recordLength > MAX_SHORT_NDEF_LENGTH)
+            if (!shortRecord)
             {
-                throw new NDefEncodingException("Combined NDEF message exceeds " + MAX_SHORT_NDEF_LENGTH + " bytes");
+                header &= ~SHORT_RECORD_MASK;
             }
 
-            records.write(getRecordHeader(index, urls.size()));
+            records.write(header);
             records.write(TYPE_LENGTH);
-            records.write(payloadLength);
+
+            if (shortRecord)
+            {
+                records.write(payloadLength);
+            }
+            else
+            {
+                records.writeBytes(ByteBuffer.allocate(Integer.BYTES).putInt(payloadLength).array());
+            }
+
             records.write(URI_TYPE);
             records.write(HTTPS_PREFIX);
             records.writeBytes(urlBytes);
         }
 
-        final ByteArrayOutputStream output = new ByteArrayOutputStream();
-
-        output.write(NDEF_TLV);
-        output.write(records.size());
-        output.writeBytes(records.toByteArray());
-        output.write(TERMINATOR);
-
-        return new NDefMessage(output.toByteArray());
+        return new NDefMessage(records.toByteArray());
     }
 
     private static int getRecordHeader(final int index, final int recordCount)
@@ -128,11 +128,6 @@ public final class NDefEncoder
         final String asciiUrl = uri.toASCIIString();
         final String uriSuffix = asciiUrl.substring(HTTPS_URI_PREFIX.length());
         final byte[] urlBytes = uriSuffix.getBytes(StandardCharsets.UTF_8);
-
-        if (urlBytes.length > MAX_URI_SUFFIX_BYTES)
-        {
-            throw new NDefEncodingException("URL is too long");
-        }
 
         return urlBytes;
     }

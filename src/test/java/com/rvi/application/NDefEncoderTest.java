@@ -21,10 +21,7 @@ public final class NDefEncoderTest
     void encodesSingleUrl()
     {
         String url = "https://a.ch";
-        byte[] expected = {
-                3, 9, (byte) 0xD1, 1, 5, 0x55, 4,
-                0x61, 0x2E, 0x63, 0x68, (byte) 0xFE
-        };
+        byte[] expected = {(byte) 0xD1, 1, 5, 0x55, 4, 0x61, 0x2E, 0x63, 0x68};
 
         byte[] actual = encoder.encodeURI(url).data();
 
@@ -35,13 +32,7 @@ public final class NDefEncoderTest
     void encodesMultipleUrlsInOrder()
     {
         List<String> urls = List.of("https://a.ch", "https://b.ch", "https://c.ch");
-        byte[] expected = {
-                3, 27,
-                (byte) 0x91, 1, 5, 0x55, 4, 0x61, 0x2E, 0x63, 0x68,
-                0x11, 1, 5, 0x55, 4, 0x62, 0x2E, 0x63, 0x68,
-                0x51, 1, 5, 0x55, 4, 0x63, 0x2E, 0x63, 0x68,
-                (byte) 0xFE
-        };
+        byte[] expected = {(byte) 0x91, 1, 5, 0x55, 4, 0x61, 0x2E, 0x63, 0x68, 0x11, 1, 5, 0x55, 4, 0x62, 0x2E, 0x63, 0x68, 0x51, 1, 5, 0x55, 4, 0x63, 0x2E, 0x63, 0x68};
 
         byte[] actual = encoder.encodeURIs(urls).data();
 
@@ -92,50 +83,37 @@ public final class NDefEncoderTest
     }
 
     @Test
-    void acceptsMaximumUrlLength()
+    void selectsShortRecordAt255PayloadBytes()
     {
-        String url = "https://a.ch/" + "a".repeat(244);
+        final String url = "https://a.ch/" + "a".repeat(249);
+        final byte[] actual = encoder.encodeURI(url).data();
 
-        byte[] actual = encoder.encodeURI(url).data();
-        int recordLength = Byte.toUnsignedInt(actual[1]);
-        int payloadLength = Byte.toUnsignedInt(actual[4]);
-        byte terminator = actual[actual.length - 1];
-
-        assertEquals(257, actual.length);
-        assertEquals(254, recordLength);
-        assertEquals(250, payloadLength);
-        assertEquals((byte) 0xFE, terminator);
+        assertEquals(259, actual.length);
+        assertEquals(0xD1, Byte.toUnsignedInt(actual[0]));
+        assertEquals(255, Byte.toUnsignedInt(actual[2]));
     }
 
     @Test
-    void rejectsUrlAboveMaximumLength()
+    void selectsLongRecordAt256PayloadBytes()
     {
-        String url = "https://a.ch/" + "a".repeat(245);
+        final String url = "https://a.ch/" + "a".repeat(250);
+        final byte[] actual = encoder.encodeURI(url).data();
 
-        assertThrows(NDefEncodingException.class, () -> encoder.encodeURI(url));
+        assertEquals(263, actual.length);
+        assertEquals(0xC1, Byte.toUnsignedInt(actual[0]));
+        assertEquals(256, java.nio.ByteBuffer.wrap(actual, 2, 4).getInt());
+        assertEquals(0x55, Byte.toUnsignedInt(actual[6]));
+        assertEquals(0x04, Byte.toUnsignedInt(actual[7]));
     }
 
     @Test
-    void acceptsMaximumCombinedLength()
+    void encodesMixedShortAndLongRecordsWithoutACardLimit()
     {
-        String firstUrl = "https://a.ch";
-        String secondUrl = "https://b.ch/" + "a".repeat(235);
-        List<String> urls = List.of(firstUrl, secondUrl);
+        final byte[] actual = encoder.encodeURIs(List.of("https://a.ch", "https://b.ch/" + "x".repeat(500))).data();
 
-        byte[] actual = encoder.encodeURIs(urls).data();
-        int recordLength = Byte.toUnsignedInt(actual[1]);
-
-        assertEquals(254, recordLength);
-    }
-
-    @Test
-    void rejectsCombinedLengthAboveMaximum()
-    {
-        String firstUrl = "https://a.ch";
-        String secondUrl = "https://b.ch/" + "a".repeat(236);
-        List<String> urls = List.of(firstUrl, secondUrl);
-
-        assertThrows(NDefEncodingException.class, () -> encoder.encodeURIs(urls));
+        assertEquals(0x91, Byte.toUnsignedInt(actual[0]));
+        assertEquals(0x41, Byte.toUnsignedInt(actual[9]));
+        assertTrue(actual.length > 504);
     }
 
     @Test
@@ -145,21 +123,21 @@ public final class NDefEncoderTest
         String expectedSuffix = "a.ch/%C3%A4";
 
         byte[] actual = encoder.encodeURI(url).data();
-        String actualSuffix = new String(actual, 7, actual.length - 8, StandardCharsets.US_ASCII);
-        int recordLength = Byte.toUnsignedInt(actual[1]);
+        String actualSuffix = new String(actual, 5, actual.length - 5, StandardCharsets.US_ASCII);
+        int recordLength = actual.length;
 
         assertEquals(expectedSuffix, actualSuffix);
         assertEquals(16, recordLength);
     }
 
     @Test
-    void checksLengthAfterPercentEncoding()
+    void acceptsPercentEncodedPathsBeyondTheOldLimit()
     {
         String validUrl = "https://a.ch/" + "ä".repeat(40);
         String oversizedUrl = "https://a.ch/" + "ä".repeat(41);
 
         assertDoesNotThrow(() -> encoder.encodeURI(validUrl));
-        assertThrows(NDefEncodingException.class, () -> encoder.encodeURI(oversizedUrl));
+        assertDoesNotThrow(() -> encoder.encodeURI(oversizedUrl));
     }
 
     @Test
@@ -169,7 +147,7 @@ public final class NDefEncoderTest
         String url = "https://" + expectedSuffix;
 
         byte[] actual = encoder.encodeURI(url).data();
-        String actualSuffix = new String(actual, 7, actual.length - 8, StandardCharsets.US_ASCII);
+        String actualSuffix = new String(actual, 5, actual.length - 5, StandardCharsets.US_ASCII);
 
         assertEquals(expectedSuffix, actualSuffix);
     }
@@ -184,6 +162,6 @@ public final class NDefEncoderTest
 
         byte[] actual = encoder.encodeURI(validUrl).data();
 
-        assertEquals(12, actual.length);
+        assertEquals(9, actual.length);
     }
 }

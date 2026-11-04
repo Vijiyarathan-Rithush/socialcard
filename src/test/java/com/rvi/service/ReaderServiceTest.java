@@ -18,10 +18,7 @@ class ReaderServiceTest
 
     private NDefMessage message()
     {
-        return new NDefMessage(new byte[] {
-                3, 9, (byte) 0xD1, 1, 5, 0x55, 4,
-                0x61, 0x2E, 0x63, 0x68, (byte) 0xFE
-        });
+        return new NDefMessage(new byte[] {(byte) 0xD1, 1, 5, 0x55, 4, 0x61, 0x2E, 0x63, 0x68});
     }
 
     @Test
@@ -49,9 +46,9 @@ class ReaderServiceTest
         List<String> urls = List.of("https://a.ch", "https://b.ch");
 
         byte[] actual = service.encodeURIs(urls).data();
-        int recordLength = Byte.toUnsignedInt(actual[1]);
-        int firstHeader = Byte.toUnsignedInt(actual[2]);
-        int lastHeader = Byte.toUnsignedInt(actual[11]);
+        int recordLength = actual.length;
+        int firstHeader = Byte.toUnsignedInt(actual[0]);
+        int lastHeader = Byte.toUnsignedInt(actual[9]);
 
         assertEquals(18, recordLength);
         assertEquals(0x91, firstHeader);
