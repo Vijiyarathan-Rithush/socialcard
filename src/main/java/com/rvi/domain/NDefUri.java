@@ -20,7 +20,7 @@ public record NDefUri(String uri) implements NDefContent
 
             if (!parsed.isAbsolute() || parsed.getRawSchemeSpecificPart().isEmpty())
             {
-                throw new NDefValueException("Expected an absolute URI");
+                throw new NDefValueException("URI scheme is missing; use e.g. https://www.example.com or tel:+41791234567");
             }
 
             if ("http".equalsIgnoreCase(parsed.getScheme()) || "https".equalsIgnoreCase(parsed.getScheme()))
@@ -35,7 +35,7 @@ public record NDefUri(String uri) implements NDefContent
         }
         catch (URISyntaxException exception)
         {
-            throw new NDefValueException("Invalid URI", exception);
+            throw new NDefValueException("Invalid URI; include a scheme and encode spaces as %20", exception);
         }
     }
 }

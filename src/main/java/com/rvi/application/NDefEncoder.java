@@ -11,7 +11,6 @@ import com.rvi.domain.WifiAuthentication;
 import com.rvi.domain.exception.NDefValueException;
 
 import java.io.ByteArrayOutputStream;
-import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -24,6 +23,7 @@ public final class NDefEncoder
     private static final int MESSAGE_BEGIN_MASK = 0x80;
     private static final int MESSAGE_END_MASK = 0x40;
 
+    /** Encodes one absolute URI without hardware; accepts the same schemes as NDefUri. */
     public NDefMessage encodeURI(final String url)
     {
         if (url == null)
@@ -34,6 +34,7 @@ public final class NDefEncoder
         return encodeURIs(List.of(url));
     }
 
+    /** Encodes a nonempty URI list in order. Null, blank and relative URIs are rejected. */
     public NDefMessage encodeURIs(final List<String> urls)
     {
         if (urls == null || urls.isEmpty())
@@ -54,22 +55,18 @@ public final class NDefEncoder
             {
                 final NDefUri value = new NDefUri(url);
 
-                if (!"https".equalsIgnoreCase(URI.create(value.uri()).getScheme()))
-                {
-                    throw new NDefEncodingException("Expected a valid HTTPS URL");
-                }
-
                 contents.add(value);
             }
             catch (NDefValueException exception)
             {
-                throw new NDefEncodingException("Invalid HTTPS URL", exception);
+                throw new NDefEncodingException("Invalid URI: " + exception.getMessage(), exception);
             }
         }
 
         return encode(contents);
     }
 
+    /** Encodes a nonempty list of typed content in order, choosing short or long record lengths automatically. */
     public NDefMessage encode(final List<NDefContent> contents)
     {
         if (contents == null || contents.isEmpty())

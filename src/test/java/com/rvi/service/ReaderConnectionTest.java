@@ -26,6 +26,22 @@ import static org.junit.jupiter.api.Assertions.*;
 final class ReaderConnectionTest
 {
     @Test
+    void listsExactReaderNamesWithoutConnectingAndReportsDiscoveryFailures()
+    {
+        final FakeTerminal first = new FakeTerminal("First");
+        final FakeTerminal second = new FakeTerminal("Second");
+        final FakeTerminals terminals = new FakeTerminals(List.of(first, second));
+        final List<String> names = ReaderService.listReaders(() -> terminals);
+        assertEquals(List.of("First", "Second"), names);
+        assertThrows(UnsupportedOperationException.class, () -> names.clear());
+        assertEquals(0, first.connects);
+        assertEquals(0, second.connects);
+        assertTrue(ReaderService.listReaders(() -> new FakeTerminals(List.of())).isEmpty());
+        terminals.failure = new CardException("PC/SC unavailable");
+        assertThrows(ReaderServiceException.class, () -> ReaderService.listReaders(() -> terminals));
+    }
+
+    @Test
     void factoriesCreateServicesWithoutConnectingToHardware()
     {
         try (final IReaderService service = ReaderService.create())

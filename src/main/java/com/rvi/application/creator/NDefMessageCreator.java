@@ -12,6 +12,7 @@ public final class NDefMessageCreator
 {
     private final List<NDefContent> contents = new ArrayList<>();
 
+    /** Appends a non-null typed content value, preserving insertion order. */
     public NDefMessageCreator add(final NDefContent content)
     {
         if (content == null)
@@ -23,6 +24,7 @@ public final class NDefMessageCreator
         return this;
     }
 
+    /** Validates collected values and returns a new immutable value. Does not access hardware. */
     public NDefMessage build()
     {
         return new NDefEncoder().encode(List.copyOf(contents));

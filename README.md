@@ -2,7 +2,7 @@
 
 # SocialCard
 
-A Java 25 library for creating, reading and writing NDEF messages on NFC tags.
+A Java 25 library for creating, reading and writing NDEF messages on NTAG215 tags through a compatible PC/SC reader.
 
 ![Java](https://img.shields.io/badge/Java-25-111111?style=for-the-badge)
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.vijiyarathan-rithush/socialcard?style=for-the-badge&color=111111&label=Maven%20Central)](https://central.sonatype.com/artifact/io.github.vijiyarathan-rithush/socialcard)
@@ -33,13 +33,18 @@ The project has been tested with an ACS ACR122U reader and NTAG215 tags.
 
 ## Installation
 
-Add the dependency to your Maven project's `pom.xml`:
+The additions `writeURI()`, `readURIs()`, `readContents()`, `NDefDecoder` and
+`listReaders()` below are unreleased source changes. Maven Central `0.1.0` does
+not include them yet. To try this branch, run `mvn clean install` with JDK 25
+and use version `0.1.1-SNAPSHOT` in your consuming project.
+
+After installing this branch locally, add the dependency to your Maven project's `pom.xml`:
 
 ```xml
 <dependency>
     <groupId>io.github.vijiyarathan-rithush</groupId>
     <artifactId>socialcard</artifactId>
-    <version>0.1.0</version>
+    <version>0.1.1-SNAPSHOT</version>
 </dependency>
 ```
 
@@ -50,10 +55,6 @@ SocialCard uses the SLF4J API. Applications choose their own logging implementat
 Place a card on the reader before running this example:
 
 ```java
-import com.rvi.application.creator.NDefMessageCreator;
-import com.rvi.application.creator.NDefUriCreator;
-import com.rvi.domain.NDefMessage;
-import com.rvi.domain.NDefUri;
 import com.rvi.service.IReaderService;
 import com.rvi.service.ReaderService;
 
@@ -61,16 +62,11 @@ public final class SocialCardExample
 {
     public static void main(final String[] args)
     {
-        final NDefUri website = new NDefUriCreator().uri("https://rithush.dev").build();
-        final NDefMessage message = new NDefMessageCreator().add(website).build();
-
         try (final IReaderService service = ReaderService.create())
         {
             service.connect();
-            service.write(message);
-
-            final NDefMessage stored = service.read();
-            System.out.println("Read %d NDEF bytes".formatted(stored.data().length));
+            service.writeURI("https://rithush.dev");
+            System.out.println(service.readURIs());
         }
     }
 }
@@ -79,6 +75,7 @@ public final class SocialCardExample
 `ReaderService.create()` selects the first reader. Use
 `ReaderService.create("Exact Reader Name")` to select a reader by name.
 Creating a service does not open a connection; `connect()` does.
+Use `ReaderService.listReaders()` to get exact reader names without a card.
 
 `connect()` fails immediately if the reader or card is unavailable. `close()` calls
 `disconnect()` automatically. You can also call `disconnect()` explicitly; repeated
@@ -141,8 +138,32 @@ final NDefMessage decoded = new TlvDecoder().decode(tagData);
 `NDefMessage.data()` returns a defensive copy of the NDEF bytes, without the TLV
 wrapper, terminator or page padding. `TlvEncoder` and `TlvDecoder` handle the wrapper.
 The reader service applies this conversion automatically when accessing a card.
-The convenience methods `encodeURI()` and `encodeURIs()` accept HTTPS URLs only;
-use `NDefUriCreator` for other URI schemes.
+The convenience methods `encodeURI()` and `encodeURIs()` accept the same absolute
+URIs as `NDefUriCreator`, including HTTP, HTTPS, `tel:` and `mailto:`.
+Include the scheme: use `https://www.example.com`, not `www.example.com`.
+
+## Read usable content
+
+```java
+// With an already connected service:
+final var links = service.readURIs(); // immutable List<String>
+final var values = service.readContents(); // immutable List<NDefContent>
+
+// Without hardware, decode an existing NDefMessage:
+final var contents = new com.rvi.application.NDefDecoder().decode(message);
+```
+
+`read()` still returns the original validated `NDefMessage`. Typed decoding
+returns `NDefUri`, `NDefText`, `NDefContact` or `NDefWifi` in record order.
+vCard decoding supports SocialCard's vCard 4.0 fields (structured first/last name,
+email, text phone and website); other or repeated properties are rejected.
+Wi-Fi decoding supports one open network or WPA2-Personal/AES credential.
+This is not a general-purpose vCard or WSC parser.
+
+`ReaderMonitor` runs listener callbacks on its background thread. Dispatch UI
+updates to your UI thread. `onError` reports a polling or callback failure while
+active and ends monitoring. A monitor can start only once; `close()` requests a
+stop, but an in-flight callback may finish. Create a new monitor to restart.
 
 ## Errors and limitations
 
@@ -154,9 +175,25 @@ use `NDefUriCreator` for other URI schemes.
   container, which advertises 496 bytes on a factory-configured NTAG215.
 - The supported layout starts with an NDEF TLV and ends with a terminator.
   Preceding control TLVs, chunked content and record IDs are not supported.
-- Reading returns validated NDEF bytes, not reconstructed typed domain objects.
+- Raw reads validate NDEF structure. Typed reads additionally validate the supported payload formats.
 - Writing replaces the current NDEF message. Removing the card during a write can
   leave incomplete content; writing is not an atomic operation.
+
+## Troubleshooting
+
+| Symptom | What to check |
+|---------|---------------|
+| Build fails with unsupported release 25 | Run `java -version` and `mvn -version`; both must use JDK 25 or later. Set your IDE project SDK too. |
+| No reader found / empty reader list | Connect the USB reader, install its PC/SC driver and check the OS smart-card service (Windows Smart Card service; Linux pcscd). |
+| No card present | Place a supported tag on the reader before `connect()`. The method does not wait. |
+| Service is not connected | Call `connect()` inside the try-with-resources block before reading or writing. |
+| Capacity exceeded | Reduce content. NTAG215 advertises 496 bytes shared by NDEF, TLV overhead and terminator. |
+| Invalid URI | Include a scheme such as `https://`; encode spaces as `%20`. |
+| Unsupported record or layout | Use the supported NTAG215 layout and record types listed above; PC/SC alone does not imply support for every NFC tag. |
+
+Hardware access is exercised with test doubles in automated tests. The reported
+ACR122U/NTAG215 setup is the project's reference hardware, not a compatibility
+guarantee for other readers or tags. Run a real write/read test with your hardware.
 
 ## Build from source
 

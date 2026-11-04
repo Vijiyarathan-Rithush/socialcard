@@ -23,6 +23,17 @@ class ReaderServiceTest
     }
 
     @Test
+    void supportsConvenienceWriteAndTypedReads()
+    {
+        service.writeURI("mailto:hello@example.com");
+        repository.result = repository.written;
+        assertEquals(List.of("mailto:hello@example.com"), service.readURIs());
+        assertEquals(List.of(new com.rvi.domain.NDefUri("mailto:hello@example.com")), service.readContents());
+        assertEquals(1, repository.writes);
+        assertEquals(2, repository.reads);
+    }
+
+    @Test
     void rejectsMissingRepository()
     {
         assertThrows(ReaderServiceException.class, () -> new ReaderService(null));
@@ -61,7 +72,7 @@ class ReaderServiceTest
     @Test
     void rejectsInvalidInputWithoutHardware()
     {
-        String invalidUrl = "http://a.ch";
+        String invalidUrl = "a.ch";
         List<String> emptyUrls = List.of();
 
         assertThrows(NDefEncodingException.class, () -> service.encodeURI(invalidUrl));

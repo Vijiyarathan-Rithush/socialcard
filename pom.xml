@@ -6,7 +6,7 @@
 
     <groupId>io.github.vijiyarathan-rithush</groupId>
     <artifactId>socialcard</artifactId>
-    <version>0.1.0</version>
+    <version>0.1.1-SNAPSHOT</version>
 
     <name>SocialCard</name>
     <description>A Java 25 NFC library for creating, reading and writing NDEF messages on NTAG215 tags.</description>

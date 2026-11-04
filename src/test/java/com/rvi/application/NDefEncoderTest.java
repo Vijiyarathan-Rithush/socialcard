@@ -55,8 +55,6 @@ public final class NDefEncoderTest
     @ValueSource(strings = {
             " ",
             "\t\n",
-            "http://a.ch",
-            "ftp://a.ch",
             "https://",
             "a.ch",
             "https:///path",
@@ -74,12 +72,12 @@ public final class NDefEncoderTest
     {
         List<String> emptyUrls = List.of();
         List<String> urlsWithNull = Arrays.asList("https://a.ch", null);
-        List<String> urlsWithHttp = List.of("https://a.ch", "http://b.ch");
+        List<String> urlsWithInvalid = List.of("https://a.ch", "b.ch");
 
         assertThrows(NDefEncodingException.class, () -> encoder.encodeURIs(null));
         assertThrows(NDefEncodingException.class, () -> encoder.encodeURIs(emptyUrls));
         assertThrows(NDefEncodingException.class, () -> encoder.encodeURIs(urlsWithNull));
-        assertThrows(NDefEncodingException.class, () -> encoder.encodeURIs(urlsWithHttp));
+        assertThrows(NDefEncodingException.class, () -> encoder.encodeURIs(urlsWithInvalid));
     }
 
     @Test

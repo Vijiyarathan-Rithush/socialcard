@@ -13,6 +13,7 @@ public final class TlvDecoder
     private static final int TERMINATOR = 0xFE;
     private static final int MAX_NDEF_LENGTH = 0xFFFE;
 
+    /** Unwraps an NDEF TLV starting at offset zero; rejects missing terminators and invalid content. */
     public NDefMessage decode(final byte[] data)
     {
         final Header header = readHeader(data);
@@ -35,6 +36,7 @@ public final class TlvDecoder
         return new NDefMessage(Arrays.copyOfRange(data, header.headerLength(), header.headerLength() + header.valueLength()));
     }
 
+    /** Returns the TLV size including header and terminator from a complete header; the body need not be present. */
     public int encodedLength(final byte[] data)
     {
         return readHeader(data).totalLength();

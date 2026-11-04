@@ -12,6 +12,7 @@ public final class TlvEncoder
     private static final int TERMINATOR = 0xFE;
     private static final int MAX_NDEF_LENGTH = 0xFFFE;
 
+    /** Wraps validated NDEF bytes in an NDEF TLV with a terminator, using extended length when needed. */
     public byte[] encode(final NDefMessage message)
     {
         if (message == null)

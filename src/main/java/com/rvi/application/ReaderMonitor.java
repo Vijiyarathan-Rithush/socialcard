@@ -23,11 +23,12 @@ public final class ReaderMonitor implements AutoCloseable
         this.listener = Objects.requireNonNull(listener);
     }
 
-    public void start()
+    /** Starts one background monitor. May be called only once, before close(). Listener callbacks run on the monitor thread. */
+    public synchronized void start()
     {
         if (!started.compareAndSet(false, true))
         {
-            throw new IllegalStateException("Monitor already started");
+            throw new IllegalStateException("Monitor already started or closed");
         }
         running.set(true);
         executor.submit(this::monitor);
@@ -66,7 +67,7 @@ public final class ReaderMonitor implements AutoCloseable
         }
         catch (CardException | RuntimeException ex)
         {
-            if (!running.get())
+            if (running.get())
             {
                 listener.onError(ex);
             }
@@ -74,12 +75,15 @@ public final class ReaderMonitor implements AutoCloseable
         finally
         {
             running.set(false);
+            executor.shutdown();
         }
     }
 
+    /** Requests monitoring to stop and shuts down its executor; an in-flight callback may finish. */
     @Override
-    public void close() throws Exception
+    public synchronized void close()
     {
+        started.set(true);
         running.set(false);
         executor.shutdown();
     }

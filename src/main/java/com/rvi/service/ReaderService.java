@@ -50,11 +50,35 @@ public final class ReaderService implements IReaderService
         this.readerName = readerName;
     }
 
+    /**
+     * Lists exact PC/SC reader names without connecting to a card.
+     * @return an immutable list, empty when no reader is connected
+     * @throws ReaderServiceException if PC/SC discovery fails
+     */
+    public static List<String> listReaders()
+    {
+        return listReaders(() -> TerminalFactory.getDefault().terminals());
+    }
+
+    static List<String> listReaders(final Supplier<CardTerminals> provider)
+    {
+        try
+        {
+            return provider.get().list().stream().map(CardTerminal::getName).toList();
+        }
+        catch (CardException | IllegalStateException exception)
+        {
+            throw new ReaderServiceException("Could not list NFC readers; check the PC/SC service and reader driver", exception);
+        }
+    }
+
+    /** Creates a disconnected service selecting the first available reader at connect time. */
     public static IReaderService create()
     {
         return new ReaderService();
     }
 
+    /** Creates a disconnected service selecting the exact, nonblank PC/SC reader name at connect time. */
     public static IReaderService create(final String readerName)
     {
         if (readerName == null || readerName.isBlank())
@@ -84,7 +108,7 @@ public final class ReaderService implements IReaderService
 
             if (!terminal.isCardPresent())
             {
-                throw new ReaderServiceException("No card is present on reader: " + terminal.getName());
+                throw new ReaderServiceException("Place a card on reader " + terminal.getName() + " before calling connect()");
             }
 
             final Card connected = terminal.connect("*");
@@ -192,7 +216,7 @@ public final class ReaderService implements IReaderService
 
         if (terminals.isEmpty())
         {
-            throw new ReaderServiceException("No NFC reader was found");
+            throw new ReaderServiceException("No NFC reader was found; connect a PC/SC reader and check its driver and PC/SC service");
         }
 
         if (readerName == null)
