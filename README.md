@@ -42,7 +42,7 @@ Developed as a learning project during my software development apprenticeship.
 | Reader communication | Java Smart Card I/O |
 | Commands | APDU |
 | Data format | NDEF URI, Text and MIME content |
-| Logging | SLF4J and Logback |
+| Logging | SLF4J API; applications choose their logging implementation |
 
 ## Requirements
 
@@ -51,6 +51,12 @@ Developed as a learning project during my software development apprenticeship.
 - A compatible PC/SC NFC reader, such as the ACS ACR122U
 - Installed reader drivers and a working PC/SC service
 - A writable NTAG215 tag matching the configured memory layout
+
+## Release preparation
+
+The prepared first Maven Central release is `io.github.vijiyarathan-rithush:socialcard:0.1.0`.
+SocialCard is licensed under MIT. It is not published on Maven Central yet; the publishing namespace must be verified before release.
+See [RELEASING.md](RELEASING.md) for preview builds, signing and publishing instructions.
 
 ## Getting Started
 
