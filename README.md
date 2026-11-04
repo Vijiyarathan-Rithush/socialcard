@@ -1,233 +1,173 @@
-﻿<div align="center">
+<div align="center">
 
 # SocialCard
 
-Store your links on an NFC card.
-
-A Java application for creating, reading and writing NDEF messages on NFC tags.
+A Java 25 library for creating, reading and writing NDEF messages on NFC tags.
 
 ![Java](https://img.shields.io/badge/Java-25-111111?style=for-the-badge)
-![Maven](https://img.shields.io/badge/Maven-111111?style=for-the-badge&logo=apachemaven&logoColor=white)
-![NFC](https://img.shields.io/badge/NFC-NDEF-111111?style=for-the-badge&logo=nfc&logoColor=white)
-![Status](https://img.shields.io/badge/Status-In_Development-111111?style=for-the-badge)
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.vijiyarathan-rithush/socialcard?style=for-the-badge&color=111111&label=Maven%20Central)](https://central.sonatype.com/artifact/io.github.vijiyarathan-rithush/socialcard)
+[![License](https://img.shields.io/badge/License-MIT-111111?style=for-the-badge)](LICENSE)
 
 </div>
 
-## Overview
+## What it does
 
-SocialCard stores URIs, text, contacts and Wi-Fi credentials on writable NFC tags.
-It communicates with an NFC reader through Java Smart Card I/O and
-uses APDU commands to access tag memory.
+SocialCard connects to an NFC card through a PC/SC reader and stores NDEF messages
+containing links, text, contacts or Wi-Fi credentials. Use it as a Maven dependency
+in a console application, desktop application or another Java project.
 
-Developed as a learning project during my software development apprenticeship.
-
-## Features
-
-- Create URI, UTF-8 text, vCard 4.0 contact and Wi-Fi WSC content with separate fluent Creator classes
-- Combine different content types in one NDEF message
-- Keep the existing HTTPS encoding methods for compatibility
-- Read supported NDEF messages from a tag
-- Write messages using four-byte memory pages
-- Verify written data by reading it back
-- Validate URL format, message size and NDEF record structure
-- Support short and long NDEF URI records and extended-length NDEF TLVs
-- Read the NDEF area size and access permissions from the capability container
-
-## Technology
-
-| Component | Technology |
-|-----------|------------|
-| Language | Java 25 |
-| Build tool | Maven |
-| Reader communication | Java Smart Card I/O |
-| Commands | APDU |
-| Data format | NDEF URI, Text and MIME content |
-| Logging | SLF4J API; applications choose their logging implementation |
+- Create immutable domain objects with separate fluent `Creator` classes.
+- Combine different content types in one message, preserving their order.
+- Read and write cards through a service with automatic connection cleanup.
+- Encode short and long NDEF payloads and standard or extended TLV lengths.
+- Check the card's advertised capacity and verify each write by reading it back.
 
 ## Requirements
 
-- JDK 25
-- Maven
-- A compatible PC/SC NFC reader, such as the ACS ACR122U
-- Installed reader drivers and a working PC/SC service
-- A writable NTAG215 tag matching the configured memory layout
+- Java 25 or later.
+- A compatible PC/SC NFC reader with its drivers and PC/SC service available.
+- A writable NTAG215 using the supported memory layout.
 
-## Release preparation
+Creating and encoding messages does not require hardware. Card access does.
+The project has been tested with an ACS ACR122U reader and NTAG215 tags.
 
-The prepared first Maven Central release is `io.github.vijiyarathan-rithush:socialcard:0.1.0`.
-SocialCard is licensed under MIT. It is not published on Maven Central yet; the publishing namespace must be verified before release.
-See [RELEASING.md](RELEASING.md) for preview builds, signing and publishing instructions.
+## Installation
 
-## Getting Started
+Add the dependency to your Maven project's `pom.xml`:
 
-### Clone the repository
+```xml
+<dependency>
+    <groupId>io.github.vijiyarathan-rithush</groupId>
+    <artifactId>socialcard</artifactId>
+    <version>0.1.0</version>
+</dependency>
+```
+
+SocialCard uses the SLF4J API. Applications choose their own logging implementation.
+
+## Quick start
+
+Place a card on the reader before running this example:
+
+```java
+import com.rvi.application.creator.NDefMessageCreator;
+import com.rvi.application.creator.NDefUriCreator;
+import com.rvi.domain.NDefMessage;
+import com.rvi.domain.NDefUri;
+import com.rvi.service.IReaderService;
+import com.rvi.service.ReaderService;
+
+public final class SocialCardExample
+{
+    public static void main(final String[] args)
+    {
+        final NDefUri website = new NDefUriCreator().uri("https://rithush.dev").build();
+        final NDefMessage message = new NDefMessageCreator().add(website).build();
+
+        try (final IReaderService service = ReaderService.create())
+        {
+            service.connect();
+            service.write(message);
+
+            final NDefMessage stored = service.read();
+            System.out.println("Read %d NDEF bytes".formatted(stored.data().length));
+        }
+    }
+}
+```
+
+`ReaderService.create()` selects the first reader. Use
+`ReaderService.create("Exact Reader Name")` to select a reader by name.
+Creating a service does not open a connection; `connect()` does.
+
+`connect()` fails immediately if the reader or card is unavailable. `close()` calls
+`disconnect()` automatically. You can also call `disconnect()` explicitly; repeated
+calls are safe, and the service can reconnect afterward.
+
+## Create content
+
+```java
+import com.rvi.application.creator.NDefContactCreator;
+import com.rvi.application.creator.NDefMessageCreator;
+import com.rvi.application.creator.NDefTextCreator;
+import com.rvi.application.creator.NDefUriCreator;
+import com.rvi.application.creator.NDefWifiCreator;
+import com.rvi.domain.NDefContact;
+import com.rvi.domain.NDefMessage;
+import com.rvi.domain.NDefText;
+import com.rvi.domain.NDefUri;
+import com.rvi.domain.NDefWifi;
+import com.rvi.domain.WifiAuthentication;
+import com.rvi.domain.WifiEncryption;
+
+final NDefUri website = new NDefUriCreator().uri("https://rithush.dev").build();
+final NDefUri phone = new NDefUriCreator().uri("tel:+41791234567").build();
+final NDefUri email = new NDefUriCreator().uri("mailto:hello@rithush.dev").build();
+final NDefText text = new NDefTextCreator().text("Hello from SocialCard").language("en").build();
+final NDefContact contact = new NDefContactCreator().firstName("Rithush").lastName("Vijiyarathan").email("hello@rithush.dev").phone("+41791234567").website("https://rithush.dev").build();
+final NDefWifi wifi = new NDefWifiCreator().ssid("Guest").password("example-password").build();
+final NDefWifi openWifi = new NDefWifiCreator().ssid("Open Guest").authentication(WifiAuthentication.OPEN).encryption(WifiEncryption.NONE).build();
+
+final NDefMessage profile = new NDefMessageCreator().add(website).add(text).add(contact).build();
+final NDefMessage network = new NDefMessageCreator().add(wifi).build();
+```
+
+| Content | Format | Defaults |
+|---------|--------|----------|
+| `NDefUri` | Absolute URI, including HTTPS, HTTP, `tel:` and `mailto:` | No default URI |
+| `NDefText` | UTF-8 text with a language tag | Language `en` |
+| `NDefContact` | vCard 4.0 | At least a first or last name is required |
+| `NDefWifi` | Wi-Fi WSC credentials | WPA2-Personal with AES |
+
+Creators collect values; `build()` creates an immutable object. Domain constructors
+also validate their values. Wi-Fi credentials are stored as readable data on the tag.
+Phone and application support determines what happens when the tag is scanned.
+
+## Encoding without a reader
+
+```java
+import com.rvi.application.NDefEncoder;
+import com.rvi.application.TlvDecoder;
+import com.rvi.application.TlvEncoder;
+import com.rvi.domain.NDefMessage;
+import java.util.List;
+
+final NDefEncoder encoder = new NDefEncoder();
+final NDefMessage message = encoder.encodeURIs(List.of("https://rithush.dev", "https://github.com/Vijiyarathan-Rithush"));
+final byte[] tagData = new TlvEncoder().encode(message);
+final NDefMessage decoded = new TlvDecoder().decode(tagData);
+```
+
+`NDefMessage.data()` returns a defensive copy of the NDEF bytes, without the TLV
+wrapper, terminator or page padding. `TlvEncoder` and `TlvDecoder` handle the wrapper.
+The reader service applies this conversion automatically when accessing a card.
+The convenience methods `encodeURI()` and `encodeURIs()` accept HTTPS URLs only;
+use `NDefUriCreator` for other URI schemes.
+
+## Errors and limitations
+
+- `ReaderServiceException` reports connection and card communication failures.
+- `CardCapacityException` reports messages that exceed the available card memory.
+- `NDefValueException`, `NDefEncodingException`, `NDefMessageException` and
+  `TlvException` report invalid values or unsupported message structures.
+- Card access uses the NTAG215 memory layout. Capacity comes from the capability
+  container, which advertises 496 bytes on a factory-configured NTAG215.
+- The supported layout starts with an NDEF TLV and ends with a terminator.
+  Preceding control TLVs, chunked content and record IDs are not supported.
+- Reading returns validated NDEF bytes, not reconstructed typed domain objects.
+- Writing replaces the current NDEF message. Removing the card during a write can
+  leave incomplete content; writing is not an atomic operation.
+
+## Build from source
 
 ```bash
 git clone https://github.com/Vijiyarathan-Rithush/socialcard.git
 cd socialcard
+mvn clean verify
 ```
 
-### Compile
+Use JDK 25. `com.rvi.Main` contains a runnable reader example.
 
-```bash
-mvn clean compile
-```
+## License
 
-### Configure your links
-
-Edit `createMessage()` in `src/main/java/com/rvi/Main.java`:
-
-```java
-final NDefUri website = new NDefUriCreator().uri("https://rithush.dev").build();
-final NDefText text = new NDefTextCreator().text("Hello Rithush").language("en").build();
-final NDefMessage message = new NDefMessageCreator().add(website).add(text).build();
-```
-
-### Run
-
-1. Open the project as a Maven project in your IDE.
-2. Select JDK 25.
-3. Connect the NFC reader.
-4. Place a writable tag on the reader.
-5. Run `com.rvi.Main`.
-
-The application selects the first available reader and writes the
-configured message to the tag. Writing replaces the existing NDEF content.
-
-## API Examples
-
-### Create typed content
-
-Domain objects are immutable and validate their values even when constructed directly.
-Each fluent builder is a separate class in `com.rvi.application.creator`.
-`build()` creates a value; `NDefMessageCreator` preserves the order of added values.
-
-```java
-final NDefUri phone = new NDefUriCreator().uri("tel:+41791234567").build();
-final NDefText text = new NDefTextCreator().text("Hello Rithush").language("en").build();
-final NDefContact contact = new NDefContactCreator().firstName("Rithush").lastName("Vijiyarathan").email("hello@rithush.dev").phone("+41791234567").website("https://rithush.dev").build();
-final NDefWifi wifi = new NDefWifiCreator().ssid("Guest").authentication(WifiAuthentication.WPA2_PERSONAL).encryption(WifiEncryption.AES).password("example-password").build();
-final NDefMessage message = new NDefMessageCreator().add(phone).add(text).add(contact).build();
-final NDefMessage wifiMessage = new NDefMessageCreator().add(wifi).build();
-```
-
-`NDefTextCreator` defaults to language `en`. `NDefWifiCreator` defaults to WPA2-Personal
-with AES; open networks require `OPEN` and `NONE` without a password.
-Support for automatically acting on a tag depends on the phone and reading app.
-Wi-Fi credentials are stored on the tag as readable data.
-
-### Encode links without a reader
-
-`NDefEncoder` creates NDEF messages independently of NFC hardware:
-
-```java
-final NDefEncoder encoder = new NDefEncoder();
-
-final NDefMessage single = encoder.encodeURI("https://github.com/Vijiyarathan-Rithush");
-
-final NDefMessage multiple = encoder.encodeURIs(List.of("https://github.com/Vijiyarathan-Rithush", "https://www.youtube.com/"));
-```
-
-### Connect, write and read through the service
-
-Place a card on the reader before calling `connect()`. The service selects the first
-reader by default, connects to the card and creates the repository internally.
-No terminal, channel, listener, monitor or scanner is needed for a one-shot operation.
-
-```java
-try (final IReaderService service = ReaderService.create())
-{
-    service.connect();
-    service.write(message);
-
-    final NDefMessage stored = service.read();
-}
-```
-
-The factory methods are `ReaderService.create()` for the first reader and
-`ReaderService.create("Exact Reader Name")` for a named reader. Creating a service
-does not contact hardware. `new ReaderService()` is also supported.
-
-`connect()` does not wait for a card: a missing reader or card raises
-`ReaderServiceException`. Calling `connect()` twice without disconnecting also fails.
-`disconnect()` releases an owned card connection and can be called repeatedly.
-`close()` calls `disconnect()` automatically, including when the body throws.
-After disconnecting, the service can connect again.
-
-You can also manage the lifetime explicitly:
-
-```java
-final IReaderService service = ReaderService.create();
-
-try
-{
-    service.connect();
-    service.write(message);
-}
-finally
-{
-    service.disconnect();
-}
-```
-
-The existing repository-taking constructor remains available for externally managed
-connections, including `ReaderListener`. In that mode the caller owns the connection:
-`connect()` is unavailable, while `disconnect()` and `close()` do not close it.
-The monitor remains optional for applications that react to card insertion and removal.
-
-### Existing HTTPS methods
-
-With a connected `IReaderService`:
-
-```java
-final NDefMessage message = service.encodeURIs(List.of("https://github.com/Vijiyarathan-Rithush", "https://www.youtube.com/"));
-
-service.write(message);
-
-final NDefMessage stored = service.read();
-```
-
-## Project Structure
-
-| Package | Responsibility |
-|---------|----------------|
-| `com.rvi` | Application entry point and example configuration |
-| `com.rvi.application` | NDEF encoding, reader repository and APDU communication |
-| `com.rvi.application.exception` | Encoding, TLV and reader exceptions |
-| `com.rvi.application.creator` | Separate fluent builders for values and messages |
-| `com.rvi.service` | Service factories, connection lifetime, encoding and tag access |
-| `com.rvi.domain` | NDEF message representation and validation |
-| `com.rvi.domain.exception` | NDEF message validation exceptions |
-
-`NDefEncoder` handles URL encoding, while `ReaderRepository` handles
-communication with the NFC tag. `ReaderService` provides access to both.
-
-`NDefMessage` validates the message structure and protects its internal
-byte array through defensive copies. Its `data()` contains only NDEF bytes,
-without a TLV header, terminator or page padding. `TlvEncoder` adds and `TlvDecoder` removes
-the TLV wrapper; `ReaderRepository` applies page padding only when writing.
-
-Repository communication errors use `ReaderServiceException`, preserving
-the original cause. Capacity errors use `CardCapacityException`, and TLV
-format errors use `TlvException`. `IReaderRepository` retains checked
-`CardException` declarations. The service API wraps checked card failures in
-`ReaderServiceException` and preserves the original cause.
-
-## Current Limitations
-
-- Creator-based messages support absolute URIs, UTF-8 text, vCard 4.0 contacts and open or WPA2-Personal/AES Wi-Fi
-- Legacy `encodeURI` and `encodeURIs` methods remain HTTPS-only
-- Reading returns validated NDEF bytes; conversion back into typed domain objects is not implemented
-- Only the SocialCard layout is supported: NDEF TLV at the start of user memory, followed by a terminator
-- Record IDs, chunked records and preceding control TLVs are not supported
-- Physical memory access remains configured for NTAG215 pages 4 through 129
-- The capability container limits the NDEF area; a factory NTAG215 advertises 496 bytes, including TLV overhead
-- Writing is not atomic; removing the tag during a write can leave incomplete content
-- Reader selection and message content are configured through the API
-- Display and handling of multiple links depend on the receiving device and app
-
-## Author
-
-**Rithush Vijiyarathan**
-
-[![GitHub](https://img.shields.io/badge/GitHub-111111?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Vijiyarathan-Rithush)
+[MIT](LICENSE) · [Rithush Vijiyarathan](https://github.com/Vijiyarathan-Rithush)
